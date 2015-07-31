@@ -199,9 +199,15 @@ netmap_config_uninit(struct netmap_config *c)
 {
 	int i;
 	
+	netmap_config_parse(c);
 	for (i = 0; i < 2; i++)
 		netmap_confbuf_destroy(c->buf + i);
 	NM_MTX_DESTROY(c->mux);
+}
+
+void
+netmap_config_parse(struct netmap_config *c)
+{
 }
 
 #endif /* WITH_NMCONF */

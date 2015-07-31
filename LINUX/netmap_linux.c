@@ -741,11 +741,70 @@ out:
 	return (0);
 }
 
+int
+uiomove(void *buf, int howmuch, struct uio *uio)
+{
+	if (uio->write) {
+		ND("copy_from_user(%p, %p, %d)", uio->buf, buf, howmuch);
+		if (copy_from_user(buf, uio->buf, howmuch))
+			return EFAULT;
+	} else {
+		ND("copy_to_user(%p, %p, %d", uio->buf, buf, howmuch);
+		if (copy_to_user(uio->buf, buf, howmuch))
+			return EFAULT;
+	}
+	uio->buf += howmuch;
+	uio->uio_resid -= howmuch;
+	ND("howmuch %d uio_resid %d", howmuch, uio->uio_resid);
+	return 0;
+}
+
+static ssize_t
+linux_netmap_write(struct file *filp, const char __user *buf,
+		size_t count, loff_t *f_pos)
+{
+	struct netmap_priv_d *priv = filp->private_data;
+	struct uio uio = {
+		.uio_resid = count,
+		.buf = (char *)buf,
+		.write = 1,
+	};
+	int err;
+
+	ND("buf %p count %zd", buf, count);
+	err = netmap_write(priv, &uio);
+	ND("err %d uio.uio_resid %d", err, uio.uio_resid);
+	if (err)
+		return -err;
+	return count - uio.uio_resid;
+}
+
+static ssize_t
+linux_netmap_read(struct file *filp, char __user *buf,
+		size_t count, loff_t *f_pos)
+{
+	struct netmap_priv_d *priv = filp->private_data;
+	struct uio uio = {
+		.uio_resid = count,
+		.buf = buf,
+		.write = 0,
+	};
+	int err;
+
+	err = netmap_read(priv, &uio);
+	ND("err %d uio.uio_resid %d", err, uio.uio_resid);
+	if (err)
+		return -err;
+	return count - uio.uio_resid;
+}
+
 
 static struct file_operations netmap_fops = {
     .owner = THIS_MODULE,
     .open = linux_netmap_open,
     .mmap = linux_netmap_mmap,
+    .read = linux_netmap_read,
+    .write = linux_netmap_write,
     LIN_IOCTL_NAME = linux_netmap_ioctl,
     .poll = linux_netmap_poll,
     .release = linux_netmap_release,

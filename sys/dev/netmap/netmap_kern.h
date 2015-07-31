@@ -1372,6 +1372,8 @@ int netmap_init(void);
 void netmap_fini(void);
 int netmap_get_memory(struct netmap_priv_d* p);
 void netmap_dtor(void *data);
+int netmap_read(struct netmap_priv_d *, struct uio *);
+int netmap_write(struct netmap_priv_d *, struct uio *);
 
 int netmap_ioctl(struct netmap_priv_d *priv, u_long cmd, caddr_t data, struct thread *);
 
@@ -1679,6 +1681,7 @@ void *netmap_confbuf_pre_write(struct netmap_confbuf *, u_int req_size,
  * if size is 0, no other bytes can be read.
  */
 void *netmap_confbuf_pre_read(struct netmap_confbuf *, u_int *size /* in/out */);
+void netmap_confbuf_destroy(struct netmap_confbuf *);
 
 struct nm_confbuf_data;
 struct netmap_confbuf {
@@ -1695,6 +1698,7 @@ struct netmap_config {
 };
 void netmap_config_init(struct netmap_config*);
 void netmap_config_uninit(struct netmap_config*);
+void netmap_config_parse(struct netmap_config*);
 
 #else /* ! WITH_NMCONF */
 

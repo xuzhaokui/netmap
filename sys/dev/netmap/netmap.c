@@ -1009,6 +1009,64 @@ netmap_dtor(void *data)
 }
 
 
+int
+netmap_write(struct netmap_priv_d *priv, struct uio *uio)
+{
+	int ret = 0;
+	struct netmap_config *c = &priv->conf;
+	struct netmap_confbuf *i = &c->buf[0],
+			      *o = &c->buf[1];
+
+	NM_MTX_LOCK(c->mux);
+
+	netmap_confbuf_destroy(o);
+
+	while (uio->uio_resid > 0) {
+		int s = uio->uio_resid;
+		void *p = netmap_confbuf_pre_write(i, s, &s);
+		if (p == NULL) {
+			ND("NULL p from confbuf_pre_write");
+			ret = ENOMEM;
+			goto out;
+		}
+		ND("s %d", s);
+		ret = uiomove(p, s, uio);
+		if (ret)
+			goto out;
+	}
+
+out:
+	NM_MTX_UNLOCK(c->mux);
+	return ret;
+}
+
+int
+netmap_read(struct netmap_priv_d *priv, struct uio *uio)
+{
+	int ret = 0;
+	struct netmap_config *c = &priv->conf;
+	struct netmap_confbuf *o = &c->buf[1];
+
+	NM_MTX_LOCK(c->mux);
+
+	netmap_config_parse(c);
+
+	while (uio->uio_resid > 0) {
+		int s = uio->uio_resid;
+		void *p = netmap_confbuf_pre_read(o, &s);
+		if (p == NULL) {
+			goto out;
+		}
+		ret = uiomove(p, s, uio);
+		if (ret)
+			goto out;
+	}
+
+out:
+	NM_MTX_UNLOCK(c->mux);
+
+	return ret;
+}
 
 
 /*
