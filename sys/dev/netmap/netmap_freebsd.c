@@ -1349,6 +1349,8 @@ netmap_kqfilter(struct cdev *dev, struct knote *kn)
 	return 0;
 }
 
+#ifdef WITH_NMCONF
+
 static int
 freebsd_netmap_poll(struct cdev *cdevi __unused, int events, struct thread *td)
 {
@@ -1408,6 +1410,8 @@ freebsd_netmap_write(struct cdev *dev __unused, struct uio *uio, int ioflag __un
 	return netmap_config_write(&priv->conf, uio);
 }
 
+#endif /* WITH_NMCONF */
+
 extern struct cdevsw netmap_cdevsw; /* XXX used in netmap.c, should go elsewhere */
 struct cdevsw netmap_cdevsw = {
 	.d_version = D_VERSION,
@@ -1418,8 +1422,10 @@ struct cdevsw netmap_cdevsw = {
 	.d_poll = freebsd_netmap_poll,
 	.d_kqfilter = netmap_kqfilter,
 	.d_close = netmap_close,
+#ifdef WITH_NMCONF
 	.d_read = freebsd_netmap_read,
 	.d_write = freebsd_netmap_write,
+#endif /* WITH_NMCONF */
 };
 /*--- end of kqueue support ----*/
 

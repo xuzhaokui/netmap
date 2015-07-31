@@ -759,6 +759,8 @@ uiomove(void *buf, int howmuch, struct uio *uio)
 	return 0;
 }
 
+#ifdef WITH_NMCONF
+
 static ssize_t
 linux_netmap_write(struct file *filp, const char __user *buf,
 		size_t count, loff_t *f_pos)
@@ -798,13 +800,17 @@ linux_netmap_read(struct file *filp, char __user *buf,
 	return count - uio.uio_resid;
 }
 
+#endif /* WITH_NMCONF */
+
 
 static struct file_operations netmap_fops = {
     .owner = THIS_MODULE,
     .open = linux_netmap_open,
     .mmap = linux_netmap_mmap,
+#ifdef WITH_NMCONF
     .read = linux_netmap_read,
     .write = linux_netmap_write,
+#endif /* WITH_NMCONF */
     LIN_IOCTL_NAME = linux_netmap_ioctl,
     .poll = linux_netmap_poll,
     .release = linux_netmap_release,
