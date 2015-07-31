@@ -963,6 +963,7 @@ netmap_priv_new(void)
 	if (priv == NULL)
 		return NULL;
 	priv->np_refs = 1;
+	netmap_config_init(&priv->conf);
 	netmap_use_count++;
 	return priv;
 }
@@ -986,6 +987,7 @@ netmap_priv_delete(struct netmap_priv_d *priv)
 		return;
 	}
 	netmap_use_count--;
+	netmap_config_uninit(&priv->conf);
 	if (na) {
 		netmap_do_unregif(priv);
 	}

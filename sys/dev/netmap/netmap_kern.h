@@ -57,6 +57,9 @@
 #if defined(CONFIG_NETMAP_PTNETMAP_HOST)
 #define WITH_PTNETMAP_HOST
 #endif
+#if defined(CONFIG_NETMAP_NMCONF)
+#define WITH_NMCONF
+#endif
 
 #elif defined (_WIN32)
 #define WITH_VALE	// comment out to disable VALE support
@@ -1657,6 +1660,50 @@ PNMB(struct netmap_adapter *na, struct netmap_slot *slot, uint64_t *pp)
 	return ret;
 }
 
+#ifdef WITH_NMCONF
+
+struct netmap_confbuf;
+/* get next char from the buffer; returns 0 on end */
+int netmap_confbuf_getc(struct netmap_confbuf *);
+/* prepare for a write of req_size bytes;
+ * returns a pointer to a buffer that can be used for writing,
+ * or NULL if not enough space is available;
+ * By passing in avl_size, the caller declares that it is
+ * willing to accept a buffer with a smaller size than requested.
+ */
+void *netmap_confbuf_pre_write(struct netmap_confbuf *, u_int req_size,
+		u_int *avl_size);
+/* prepare for a read of size bytes;
+ * returns a pointer to a buffer which is at least size bytes big.
+ * Note that, on return, size may be smaller than asked for;
+ * if size is 0, no other bytes can be read.
+ */
+void *netmap_confbuf_pre_read(struct netmap_confbuf *, u_int *size /* in/out */);
+
+struct nm_confbuf_data;
+struct netmap_confbuf {
+	struct nm_confbuf_data *readp;
+	struct nm_confbuf_data *writep;
+	u_int n_data;
+	u_int next_w;
+	u_int next_r;
+};
+
+struct netmap_config {
+	NM_MTX_T mux;
+	struct netmap_confbuf buf[2]; /* 0 in, 1 out */
+};
+void netmap_config_init(struct netmap_config*);
+void netmap_config_uninit(struct netmap_config*);
+
+#else /* ! WITH_NMCONF */
+
+struct netmap_config {};
+#define netmap_config_init(_a)		((void)(_a))
+#define netmap_config_uninit(_a)	((void)(_a))
+
+#endif /* WITH_NMCONF */
+
 
 /*
  * Structure associated to each netmap file descriptor.
@@ -1691,6 +1738,8 @@ struct netmap_priv_d {
 	 */
 	NM_SELINFO_T *np_si[NR_TXRX];
 	struct thread	*np_td;		/* kqueue, just debugging */
+
+	struct netmap_config	conf;
 };
 
 struct netmap_priv_d *netmap_priv_new(void);
