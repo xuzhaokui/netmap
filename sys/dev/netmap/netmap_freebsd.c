@@ -1382,6 +1382,32 @@ out:
 	return error;
 }
 
+static int
+freebsd_netmap_read(struct cdev *dev __unused, struct uio *uio, int ioflag __unused)
+{
+	struct netmap_priv_d *priv;
+	int error;
+
+	error = devfs_get_cdevpriv((void **)&priv);
+	if (error)
+		return error;
+
+	return netmap_config_read(&priv->conf, uio);
+}
+
+static int
+freebsd_netmap_write(struct cdev *dev __unused, struct uio *uio, int ioflag __unused)
+{
+	struct netmap_priv_d *priv;
+	int error;
+
+	error = devfs_get_cdevpriv((void **)&priv);
+	if (error)
+		return error;
+
+	return netmap_config_write(&priv->conf, uio);
+}
+
 extern struct cdevsw netmap_cdevsw; /* XXX used in netmap.c, should go elsewhere */
 struct cdevsw netmap_cdevsw = {
 	.d_version = D_VERSION,
@@ -1392,6 +1418,8 @@ struct cdevsw netmap_cdevsw = {
 	.d_poll = freebsd_netmap_poll,
 	.d_kqfilter = netmap_kqfilter,
 	.d_close = netmap_close,
+	.d_read = freebsd_netmap_read,
+	.d_write = freebsd_netmap_write,
 };
 /*--- end of kqueue support ----*/
 

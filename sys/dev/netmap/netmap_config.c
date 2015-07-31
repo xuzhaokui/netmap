@@ -43,6 +43,7 @@
 #include <net/if_var.h>
 #include <machine/bus.h>	/* bus_dmamap_* */
 #include <sys/refcount.h>
+#include <sys/uio.h>
 
 
 #elif defined(linux)
@@ -81,7 +82,13 @@ struct nm_confbuf_data {
 	char data[];
 };
 
-void*
+/* prepare for a write of req_size bytes;
+ * returns a pointer to a buffer that can be used for writing,
+ * or NULL if not enough space is available;
+ * By passing in avl_size, the caller declares that it is
+ * willing to accept a buffer with a smaller size than requested.
+ */
+static void*
 netmap_confbuf_pre_write(struct netmap_confbuf *cb, u_int req_size, u_int *avl_size)
 {
 	struct nm_confbuf_data *d, *nd;
@@ -104,6 +111,7 @@ netmap_confbuf_pre_write(struct netmap_confbuf *cb, u_int req_size, u_int *avl_s
 	if (nd == NULL)
 		return NULL;
 	nd->size = s;
+	nd->chain = NULL;
 	if (d) {
 		/* the caller is not willing to do a short write
 		 * and the available space in the current chunk
@@ -133,7 +141,12 @@ out:
 	return ret;
 }
 
-void*
+/* prepare for a read of size bytes;
+ * returns a pointer to a buffer which is at least size bytes big.
+ * Note that, on return, size may be smaller than asked for;
+ * if size is 0, no other bytes can be read.
+ */
+static void*
 netmap_confbuf_pre_read(struct netmap_confbuf *cb, u_int *size)
 {
 	struct nm_confbuf_data *d;
@@ -165,7 +178,9 @@ netmap_confbuf_pre_read(struct netmap_confbuf *cb, u_int *size)
 	}
 }
 
-int
+#if 0 /* unused for now */
+/* get next char from the buffer; returns 0 on end */
+static int
 netmap_confbuf_getc(struct netmap_confbuf *cb)
 {
 	u_int size = 1;
@@ -174,6 +189,7 @@ netmap_confbuf_getc(struct netmap_confbuf *cb)
 		return *(char*)c;
 	return 0;
 }
+#endif
 
 void
 netmap_confbuf_destroy(struct netmap_confbuf *cb)
@@ -208,6 +224,63 @@ netmap_config_uninit(struct netmap_config *c)
 void
 netmap_config_parse(struct netmap_config *c)
 {
+}
+
+int
+netmap_config_write(struct netmap_config *c, struct uio *uio)
+{
+	int ret = 0;
+	struct netmap_confbuf *i = &c->buf[0],
+			      *o = &c->buf[1];
+
+	NM_MTX_LOCK(c->mux);
+
+	netmap_confbuf_destroy(o);
+
+	while (uio->uio_resid > 0) {
+		int s = uio->uio_resid;
+		void *p = netmap_confbuf_pre_write(i, s, &s);
+		if (p == NULL) {
+			ND("NULL p from confbuf_pre_write");
+			ret = ENOMEM;
+			goto out;
+		}
+		ND("s %d", s);
+		ret = uiomove(p, s, uio);
+		if (ret)
+			goto out;
+	}
+
+out:
+	NM_MTX_UNLOCK(c->mux);
+	return ret;
+}
+
+int
+netmap_config_read(struct netmap_config *c, struct uio *uio)
+{
+	int ret = 0;
+	struct netmap_confbuf *o = &c->buf[1];
+
+	NM_MTX_LOCK(c->mux);
+
+	netmap_config_parse(c);
+
+	while (uio->uio_resid > 0) {
+		int s = uio->uio_resid;
+		void *p = netmap_confbuf_pre_read(o, &s);
+		if (p == NULL) {
+			goto out;
+		}
+		ret = uiomove(p, s, uio);
+		if (ret)
+			goto out;
+	}
+
+out:
+	NM_MTX_UNLOCK(c->mux);
+
+	return ret;
 }
 
 #endif /* WITH_NMCONF */

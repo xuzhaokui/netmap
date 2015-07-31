@@ -74,6 +74,7 @@
 #define WITH_GENERIC
 #define WITH_PTNETMAP_HOST	/* ptnetmap host support */
 #define WITH_PTNETMAP_GUEST	/* ptnetmap guest support */
+#define WITH_NMCONF
 
 #endif
 
@@ -1372,8 +1373,6 @@ int netmap_init(void);
 void netmap_fini(void);
 int netmap_get_memory(struct netmap_priv_d* p);
 void netmap_dtor(void *data);
-int netmap_read(struct netmap_priv_d *, struct uio *);
-int netmap_write(struct netmap_priv_d *, struct uio *);
 
 int netmap_ioctl(struct netmap_priv_d *priv, u_long cmd, caddr_t data, struct thread *);
 
@@ -1664,25 +1663,6 @@ PNMB(struct netmap_adapter *na, struct netmap_slot *slot, uint64_t *pp)
 
 #ifdef WITH_NMCONF
 
-struct netmap_confbuf;
-/* get next char from the buffer; returns 0 on end */
-int netmap_confbuf_getc(struct netmap_confbuf *);
-/* prepare for a write of req_size bytes;
- * returns a pointer to a buffer that can be used for writing,
- * or NULL if not enough space is available;
- * By passing in avl_size, the caller declares that it is
- * willing to accept a buffer with a smaller size than requested.
- */
-void *netmap_confbuf_pre_write(struct netmap_confbuf *, u_int req_size,
-		u_int *avl_size);
-/* prepare for a read of size bytes;
- * returns a pointer to a buffer which is at least size bytes big.
- * Note that, on return, size may be smaller than asked for;
- * if size is 0, no other bytes can be read.
- */
-void *netmap_confbuf_pre_read(struct netmap_confbuf *, u_int *size /* in/out */);
-void netmap_confbuf_destroy(struct netmap_confbuf *);
-
 struct nm_confbuf_data;
 struct netmap_confbuf {
 	struct nm_confbuf_data *readp;
@@ -1698,6 +1678,9 @@ struct netmap_config {
 };
 void netmap_config_init(struct netmap_config*);
 void netmap_config_uninit(struct netmap_config*);
+struct uio;
+int netmap_config_read(struct netmap_config *, struct uio *);
+int netmap_config_write(struct netmap_config *, struct uio *);
 void netmap_config_parse(struct netmap_config*);
 
 #else /* ! WITH_NMCONF */
