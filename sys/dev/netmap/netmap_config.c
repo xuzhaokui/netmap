@@ -68,6 +68,7 @@
 #include <net/netmap.h>
 #include <dev/netmap/netmap_kern.h>
 #include <dev/netmap/netmap_mem2.h>
+#include "jsonlr.h"
 
 #ifdef WITH_NMCONF
 
@@ -92,15 +93,17 @@ static void*
 netmap_confbuf_pre_write(struct netmap_confbuf *cb, u_int req_size, u_int *avl_size)
 {
 	struct nm_confbuf_data *d, *nd;
-	u_int s = 0;
+	u_int s = 0, b;
 	void *ret;
 
 	d = cb->writep;
 	/* get the current available space */
 	if (d)
 		s = d->size - cb->next_w;
-	if (s > 0 && (s >= req_size || avl_size))
+	if (s > 0 && (s >= req_size || avl_size)) {
+		b = cb->next_w;
 		goto out;
+	}
 	/* we need to expand the buffer, if possible */
 	if (cb->n_data >= NM_CBDATAMAX)
 		return NULL;
@@ -121,24 +124,33 @@ netmap_confbuf_pre_write(struct netmap_confbuf *cb, u_int req_size, u_int *avl_s
 		d->size = cb->next_w;
 		d->chain = nd;
 	}
-	cb->writep = nd;
-	cb->next_w = 0;
 	cb->n_data++;
 	if (cb->readp == NULL) {
 		/* this was the first chunk, 
-		 * initialize the read pointer
+		 * initialize all pointers
 		 */
-		cb->readp = cb->writep;
+		cb->readp = cb->writep = nd;
 	}
 	d = nd;
+	b = 0;
 out:
 	if (s > req_size)
 		s = req_size;
 	if (avl_size)
 		*avl_size = s;
-	ret = d->data + cb->next_w;
-	cb->next_w += s;
+	ret = d->data + b;
 	return ret;
+}
+
+void
+netmap_confbuf_post_write(struct netmap_confbuf *cb, u_int size)
+{
+	if (cb->next_w == cb->writep->size) {
+		cb->writep = cb->writep->chain;
+		cb->next_w = 0;
+	}
+	cb->next_w += size;
+
 }
 
 /* prepare for a read of size bytes;
@@ -150,46 +162,70 @@ static void*
 netmap_confbuf_pre_read(struct netmap_confbuf *cb, u_int *size)
 {
 	struct nm_confbuf_data *d;
+	u_int n;
 
+	d = cb->readp;
+	n = cb->next_r;
 	for (;;) {
-		d = cb->readp;
 		if (d == NULL) {
 			*size = 0;
 			return NULL;
 		}
-		if (d->size > cb->next_r) {
+		if (d->size > n) {
 			/* there is something left to read
 			 * in this chunk
 			 */
-			u_int s = d->size - cb->next_r;
-			void *ret = d->data + cb->next_r;
+			u_int s = d->size - n;
+			void *ret = d->data + n;
 			if (*size < s)
 				s = *size;
 			else
 				*size = s;
-			cb->next_r += s;
 			return ret;
 		}
 		/* chunk exausted, move to the next one */
-		cb->readp = d->chain;
-		cb->next_r = 0;
-		free(d, M_DEVBUF);
-		cb->n_data--;
+		d = d->chain;
+		n = 0;
 	}
 }
 
-#if 0 /* unused for now */
-/* get next char from the buffer; returns 0 on end */
-static int
-netmap_confbuf_getc(struct netmap_confbuf *cb)
+void
+netmap_confbuf_post_read(struct netmap_confbuf *cb, u_int size)
 {
-	u_int size = 1;
-	void *c = netmap_confbuf_pre_read(cb, &size);
-	if (c)
-		return *(char*)c;
-	return 0;
+	if (cb->next_r == cb->readp->size) {
+		struct nm_confbuf_data *ocb = cb->readp;
+		cb->readp = cb->readp->chain;
+		cb->next_r = 0;
+		free(ocb, M_DEVBUF);
+		cb->n_data--;
+	}
+	cb->next_r += size;
 }
-#endif
+
+struct netmap_jp_stream {
+	struct _jp_stream s;
+	struct netmap_confbuf cb;
+};
+
+int
+netmap_confbuf_peek(struct _jp_stream *jp)
+{
+	struct netmap_jp_stream *n = (struct netmap_jp_stream *)jp;
+	struct netmap_confbuf *cb = &n->cb;
+	u_int s = 1;
+	void *p = netmap_confbuf_pre_read(cb, &s);
+	if (p == NULL)
+		return 0;
+	return *(char *)p;
+}
+
+void
+netmap_confbuf_consume(struct _jp_stream *jp)
+{
+	struct netmap_jp_stream *n = (struct netmap_jp_stream *)jp;
+	struct netmap_confbuf *cb = &n->cb;
+	netmap_confbuf_post_read(cb, 1);
+}
 
 void
 netmap_confbuf_destroy(struct netmap_confbuf *cb)
@@ -249,6 +285,7 @@ netmap_config_write(struct netmap_config *c, struct uio *uio)
 		ret = uiomove(p, s, uio);
 		if (ret)
 			goto out;
+		netmap_confbuf_post_write(i, s);
 	}
 
 out:
@@ -275,6 +312,7 @@ netmap_config_read(struct netmap_config *c, struct uio *uio)
 		ret = uiomove(p, s, uio);
 		if (ret)
 			goto out;
+		netmap_confbuf_post_read(o, s);
 	}
 
 out:
