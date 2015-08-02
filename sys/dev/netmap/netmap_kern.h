@@ -1681,7 +1681,7 @@ void netmap_config_uninit(struct netmap_config*);
 struct uio;
 int netmap_config_read(struct netmap_config *, struct uio *);
 int netmap_config_write(struct netmap_config *, struct uio *);
-void netmap_config_parse(struct netmap_config*);
+int netmap_config_parse(struct netmap_config*);
 
 #else /* ! WITH_NMCONF */
 

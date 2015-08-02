@@ -203,15 +203,15 @@ netmap_confbuf_post_read(struct netmap_confbuf *cb, u_int size)
 }
 
 struct netmap_jp_stream {
-	struct _jp_stream s;
-	struct netmap_confbuf cb;
+	struct _jp_stream stream;
+	struct netmap_confbuf *cb;
 };
 
 int
 netmap_confbuf_peek(struct _jp_stream *jp)
 {
 	struct netmap_jp_stream *n = (struct netmap_jp_stream *)jp;
-	struct netmap_confbuf *cb = &n->cb;
+	struct netmap_confbuf *cb = n->cb;
 	u_int s = 1;
 	void *p = netmap_confbuf_pre_read(cb, &s);
 	if (p == NULL)
@@ -223,7 +223,7 @@ void
 netmap_confbuf_consume(struct _jp_stream *jp)
 {
 	struct netmap_jp_stream *n = (struct netmap_jp_stream *)jp;
-	struct netmap_confbuf *cb = &n->cb;
+	struct netmap_confbuf *cb = n->cb;
 	netmap_confbuf_post_read(cb, 1);
 }
 
@@ -251,15 +251,43 @@ netmap_config_uninit(struct netmap_config *c)
 {
 	int i;
 	
-	netmap_config_parse(c);
+	(void)netmap_config_parse(c);
 	for (i = 0; i < 2; i++)
 		netmap_confbuf_destroy(c->buf + i);
 	NM_MTX_DESTROY(c->mux);
 }
 
-void
+#define NETMAP_CONFIG_POOL_SIZE (1<<12)
+
+int
 netmap_config_parse(struct netmap_config *c)
 {
+	char *pool;
+	uint32_t pool_len = NETMAP_CONFIG_POOL_SIZE;
+	struct netmap_jp_stream njs = {
+		.stream = {
+			.peek = netmap_confbuf_peek,
+			.consume = netmap_confbuf_consume,
+		},
+		.cb = &c->buf[0],
+	};
+	struct _jpo r;
+	int error = 0;
+
+	pool = malloc(pool_len, M_DEVBUF, M_ZERO);
+	if (pool == NULL)
+		return ENOMEM;
+	r = jslr_parse(&njs.stream, pool, pool_len);
+	if (r.ty == JPO_ERR) {
+		D("parse error: %d", r.ptr);
+		netmap_confbuf_destroy(njs.cb);
+		goto out;
+	}
+	D("parse OK: ty %u len %u ptr %u", r.ty, r.len, r.ptr);
+	/* now we should take global lock and interpret the commands */
+out:
+	free(pool, M_DEVBUF);
+	return error;
 }
 
 int
@@ -301,7 +329,9 @@ netmap_config_read(struct netmap_config *c, struct uio *uio)
 
 	NM_MTX_LOCK(c->mux);
 
-	netmap_config_parse(c);
+	ret = netmap_config_parse(c);
+	if (ret)
+		goto out;
 
 	while (uio->uio_resid > 0) {
 		int s = uio->uio_resid;
