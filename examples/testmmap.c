@@ -139,6 +139,37 @@ void do_close()
 	output_err(ret, "close(%d)=%d", fd, ret);
 }
 
+void do_read()
+{
+	int ret, fd, size;
+	char *buf, *arg = nextarg();
+	fd = arg ? atoi(arg) : last_fd;
+	arg = nextarg();
+	size = arg ? atoi(arg) : 1024;
+	buf = malloc(size);
+	if (!buf) {
+		fprintf(stderr, "malloc(%d) failed", size);
+		return;
+	}
+	ret = read(fd, buf, size);
+	output_err(ret, "read(%d, %p, %d)=%d", fd, buf, size, ret);
+	if (ret > 0)
+		printf("%*s", ret, buf);
+	free(buf);
+}
+
+void do_write()
+{
+	int ret, fd, size;
+	char *buf, *arg = nextarg();
+	buf = arg ? arg : "";
+	size = strlen(buf);
+	arg = nextarg();
+	fd = arg ? atoi(arg) : last_fd;
+	ret = write(fd, buf, size);
+	output_err(ret, "write(%d, %p, %d)=%d", fd, buf, size, ret);
+}
+
 #ifdef TEST_NETMAP
 #include <sys/ioctl.h>
 #include <sys/socket.h>
@@ -1089,6 +1120,8 @@ do_nmr()
 struct cmd_def commands[] = {
 	{ "open",	do_open,	},
 	{ "close", 	do_close,	},
+	{ "read",	do_read,	},
+	{ "write",	do_write,	},
 #ifdef TEST_NETMAP
 	{ "getinfo",	do_getinfo,	},
 	{ "regif",	do_regif,	},
