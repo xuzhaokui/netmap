@@ -1677,11 +1677,11 @@ struct netmap_config {
 	struct netmap_confbuf buf[2]; /* 0 in, 1 out */
 };
 void netmap_config_init(struct netmap_config*);
-void netmap_config_uninit(struct netmap_config*);
+void netmap_config_uninit(struct netmap_config*, int locked);
 struct uio;
 int netmap_config_read(struct netmap_config *, struct uio *);
 int netmap_config_write(struct netmap_config *, struct uio *);
-int netmap_config_parse(struct netmap_config*);
+int netmap_config_parse(struct netmap_config*, int locked);
 
 #include "jsonlr.h"
 
@@ -1716,7 +1716,7 @@ struct netmap_interp *netmap_interp_list_search(struct netmap_interp_list *,
 
 struct netmap_config {};
 #define netmap_config_init(_a)		((void)(_a))
-#define netmap_config_uninit(_a)	((void)(_a))
+#define netmap_config_uninit(_a, _l)	((void)(_a))
 
 #endif /* WITH_NMCONF */
 

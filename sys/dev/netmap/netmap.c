@@ -987,7 +987,7 @@ netmap_priv_delete(struct netmap_priv_d *priv)
 		return;
 	}
 	netmap_use_count--;
-	netmap_config_uninit(&priv->conf);
+	netmap_config_uninit(&priv->conf, 1 /* locked */);
 	if (na) {
 		netmap_do_unregif(priv);
 	}

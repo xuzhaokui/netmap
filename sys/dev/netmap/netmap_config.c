@@ -254,11 +254,11 @@ netmap_config_init(struct netmap_config *c)
 }
 
 void
-netmap_config_uninit(struct netmap_config *c)
+netmap_config_uninit(struct netmap_config *c, int locked)
 {
 	int i;
 	
-	(void)netmap_config_parse(c);
+	(void)netmap_config_parse(c, locked);
 	for (i = 0; i < 2; i++)
 		netmap_confbuf_destroy(c->buf + i);
 	NM_MTX_DESTROY(c->mux);
@@ -267,7 +267,7 @@ netmap_config_uninit(struct netmap_config *c)
 #define NETMAP_CONFIG_POOL_SIZE (1<<12)
 
 int
-netmap_config_parse(struct netmap_config *c)
+netmap_config_parse(struct netmap_config *c, int locked)
 {
 	char *pool;
 	uint32_t pool_len = NETMAP_CONFIG_POOL_SIZE;
@@ -293,7 +293,11 @@ netmap_config_parse(struct netmap_config *c)
 		goto out;
 	}
 	D("parse OK: ty %u len %u ptr %u", r.ty, r.len, r.ptr);
-	/* now we should take global lock and interpret the commands */
+	if (!locked)
+		NMG_LOCK();
+	error = netmap_interp_root.up.interp(&netmap_interp_root.up, r, pool, &c->buf[1]);
+	if (!locked)
+		NMG_UNLOCK();
 out:
 	free(pool, M_DEVBUF);
 	return error;
@@ -338,7 +342,7 @@ netmap_config_read(struct netmap_config *c, struct uio *uio)
 
 	NM_MTX_LOCK(c->mux);
 
-	ret = netmap_config_parse(c);
+	ret = netmap_config_parse(c, 0 /* not locked */);
 	if (ret)
 		goto out;
 
