@@ -51,5 +51,9 @@ struct _jp_stream {
  * external functions
  */
 struct _jpo jslr_parse(struct _jp_stream *js, char *pool, uint32_t pool_len);
+const char *	jslr_get_string(const char *pool, struct _jpo);
+int64_t		jslr_get_num(const char *pool, struct _jpo);
+struct _jpo*	jslr_get_array(const char *pool, struct _jpo);
+struct _jpo*	jslr_get_object(const char *pool, struct _jpo);
 
 #endif /* NETMAP_JSONLR_H */

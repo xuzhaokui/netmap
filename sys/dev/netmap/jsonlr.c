@@ -200,6 +200,9 @@ jslr_string(struct _jp *p)
 	if (c != '"')
 		return _r_EINVAL;
 	s->consume(s);
+	/* terminate string */
+	if (jslr_push(p, "\0", 1) < 0)
+		return _r_ENOMEM;
 	ND("STRING \"%.*s\"", (end - start), (char *)p->pool + start);
 	return (struct _jpo) { .ty = JPO_STRING, .ptr = start, .len = (end - start)};
 }
@@ -225,6 +228,9 @@ jslr_unquoted_string(struct _jp *p)
 		    in_map("_-+*/$@%!", c)
 		  )
 		);
+	/* terminate string */
+	if (jslr_push(p, "\0", 1) < 0)
+		return _r_ENOMEM;
 	r = (struct _jpo) { .ty = JPO_STRING, .ptr = start, .len = (end - start)};
 	jslr_space(p);
 	c = s->peek(s);
@@ -242,7 +248,7 @@ jslr_unquoted_string(struct _jp *p)
 		p->indot--;
 		if (x.ty > JPO_CHAR) {
 			*rp = x;
-			r = (struct _jpo) { .ty = JPO_PTR, .ptr = (ro - p->pool), .len = 1 };
+			r = (struct _jpo) { .ty = JPO_PTR, .ptr = (ro - p->pool), .len = JPO_OBJECT };
 		} else {
 			r = _r_EINVAL;
 		}
@@ -355,7 +361,7 @@ jslr_object(struct _jp *p)
 	}
 	ND("OBJECT at %d has %d elements up to %d", base, r->len,
 		base + 2*r->len);
-	return (struct _jpo) {.ty = JPO_PTR, .ptr = (r - p->pool), .len = r->len};
+	return (struct _jpo) {.ty = JPO_PTR, .ptr = (r - p->pool), .len = JPO_OBJECT};
 }
 
 static struct _jpo
@@ -406,7 +412,7 @@ jslr_array(struct _jp *p)
 	ND("ARRAY at %d has %d elements up to %d", base, r->len,
 		base + r->len);
 	//{ int i; for (i=base; i <= base + r->len; i++) D("%d : %s", i, pr_obj(p->pool[i]) ); }
-	return (struct _jpo){.ty = JPO_PTR, .ptr = (r - p->pool), .len = r->len};
+	return (struct _jpo){.ty = JPO_PTR, .ptr = (r - p->pool), .len = JPO_ARRAY};
 }
 
 /*
@@ -496,6 +502,48 @@ bad_size:
 	D("bad pool length %u (min %zu, max %zu)", pool_len,
 			sizeof(*p), JSLR_MAXSIZE + sizeof(*p));
 	return _r_ENOMEM;
+}
+
+const char *
+jslr_get_string(const char *pool, struct _jpo r)
+{
+	struct _jp *p = (struct _jp *)pool;
+	const char *d = (const char *)(p->pool);
+
+	if (r.ty != JPO_STRING)
+		return NULL;
+	return d + r.ptr;
+}
+
+int64_t
+jslr_get_num(const char *pool, struct _jpo r)
+{
+	struct _jp *p = (struct _jp *)pool;
+	const char *d = (const char *)(p->pool);
+
+	if (r.ty != JPO_NUM)
+		return 0;
+	return *(int64_t *)(d + r.ptr);
+}
+
+struct _jpo *
+jslr_get_array(const char *pool, struct _jpo r)
+{
+	struct _jp *p = (struct _jp *)pool;
+
+	if (r.ty != JPO_PTR && r.len != JPO_ARRAY)
+		return NULL;
+	return &p->pool[r.ptr];
+}
+
+struct _jpo *
+jslr_get_object(const char *pool, struct _jpo r)
+{
+	struct _jp *p = (struct _jp *)pool;
+
+	if (r.ty != JPO_PTR && r.len != JPO_OBJECT)
+		return NULL;
+	return &p->pool[r.ptr];
 }
 
 #if 0
