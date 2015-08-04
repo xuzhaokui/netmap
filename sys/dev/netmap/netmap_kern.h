@@ -1686,8 +1686,7 @@ int netmap_config_parse(struct netmap_config*, int locked);
 #include "jsonlr.h"
 
 struct netmap_interp {
-	int (*interp)(struct netmap_interp *, struct _jpo,
-			const char *pool, struct netmap_confbuf *out);
+	struct _jpo (*interp)(struct netmap_interp *, struct _jpo, char *pool);
 };
 
 struct netmap_interp_list_elem {

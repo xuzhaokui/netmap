@@ -546,6 +546,73 @@ jslr_get_object(const char *pool, struct _jpo r)
 	return &p->pool[r.ptr];
 }
 
+struct _jpo
+jslr_new_string(char *pool, const char *string)
+{
+	struct _jp *p = (struct _jp *)pool;
+	int start = p->pool_tail, end;
+	int len = strlen(string);
+
+	end = jslr_push(p, string, len + 1);
+	return (end < 0 ? _r_ENOMEM :
+			(struct _jpo) {.ty = JPO_STRING, .len = len, .ptr = start});
+}
+
+struct _jpo
+jslr_new_num(char *pool, int64_t num)
+{
+	struct _jp *p = (struct _jp *)pool;
+	int start = p->pool_tail, end;
+
+	end = jslr_push(p, (const char *)&num, 8);
+	return (end < 0 ? _r_ENOMEM :
+			(struct _jpo) {.ty = JPO_NUM, .len = 8, .ptr = start});
+}
+
+struct _jpo
+jslr_new_array(char *pool, int n)
+{
+	struct _jp *p = (struct _jp *)pool;
+	struct _jpo *a;
+	int i;
+
+	if (n > JSLR_MAXLEN)
+		return _r_EINVAL;
+
+	for (i = 0; i < n; i++) {
+		struct _jpo *r = jslr_alloc(p, _r_EINVAL);
+		if (r == NULL)
+			return _r_ENOMEM;
+	}
+	a = jslr_alloc(p, _r_ARRAY);
+	if (a == NULL)
+		return _r_ENOMEM;
+	a->len = n;
+	return (struct _jpo) {.ty = JPO_PTR, .ptr = (a - p->pool), .len = JPO_ARRAY};
+}
+
+struct _jpo
+jslr_new_object(char *pool, int n)
+{
+	struct _jp *p = (struct _jp *)pool;
+	struct _jpo *a;
+	int i;
+
+	if (n > JSLR_MAXLEN)
+		return _r_EINVAL;
+
+	for (i = 0; i < 2 * n; i++) {
+		struct _jpo *r = jslr_alloc(p, _r_EINVAL);
+		if (r == NULL)
+			return _r_ENOMEM;
+	}
+	a = jslr_alloc(p, _r_OBJECT);
+	if (a == NULL)
+		return _r_ENOMEM;
+	a->len = n;
+	return (struct _jpo) {.ty = JPO_PTR, .ptr = (a - p->pool), .len = JPO_OBJECT};
+}
+
 #if 0
 void
 jslr_dump1(struct _jp *p, struct _jpo r)

@@ -183,6 +183,23 @@ netmap_confbuf_printf(struct netmap_confbuf *cb, const char *format, ...)
 		netmap_confbuf_post_write(cb, rv);
 	return 0;
 }
+
+#if 0
+#define netmap_confbuf_iprintf(cb, i, fmt, ...)					\
+	({									\
+		int __j, __rv;							\
+		for (__j = 0; __j < (i); __j++)					\
+			if ((__rv = netmap_confbuf_printf(cb, "  ")));		\
+	 			break;						\
+	 	if (__rv == 0)							\
+			__rv = netmap_confbuf_printf(cb, fmt, ##__VA_ARGS__);	\
+	 	__rv;								\
+	 })
+#else
+#define netmap_confbuf_iprintf(cb, i, fmt, ...) netmap_confbuf_printf(cb, fmt, ##__VA_ARGS__)
+#endif
+
+
 /* prepare for a read of size bytes;
  * returns a pointer to a buffer which is at least size bytes big.
  * Note that, on return, size may be smaller than asked for;
@@ -294,6 +311,53 @@ netmap_config_uninit(struct netmap_config *c, int locked)
 	NM_MTX_DESTROY(c->mux);
 }
 
+static int
+netmap_config_dump(const char *pool, struct _jpo *r,
+		struct netmap_confbuf *out, int ind, int cont)
+{
+	int i;
+again:
+	switch (r->ty) {
+	case JPO_NUM:
+		netmap_confbuf_iprintf(out, (cont ? 0 : ind), "%ld\n", jslr_get_num(pool, *r));
+		break;
+	case JPO_STRING:
+		netmap_confbuf_iprintf(out, (cont ? 0 : ind), "\"%s\"\n", jslr_get_string(pool, *r));
+		break;
+	case JPO_ARRAY:
+		netmap_confbuf_iprintf(out, (cont ? 0 : ind), "[\n");
+		for (i = 0; i < r->len; i++)
+		    netmap_config_dump(pool, r + 1 + i, out, ind + 1, 0);
+		netmap_confbuf_iprintf(out, ind, "]\n");
+		break;
+	case JPO_OBJECT:
+		netmap_confbuf_iprintf(out, (cont ? 0: ind), "{\n");
+		for (i = 0; i < 2 * r->len; i += 2) {
+			netmap_confbuf_iprintf(out, ind + 1, "\"%s\": ", jslr_get_string(pool, *(r + 1 + i)));
+			netmap_config_dump(pool, r + 2 + i, out, ind + 1, 1);
+		}
+		netmap_confbuf_iprintf(out, ind, "}\n");
+		break;
+	case JPO_PTR:
+		switch (r->len) {
+		case JPO_ARRAY:
+			r = jslr_get_array(pool, *r);
+			break;
+		case JPO_OBJECT:
+			r = jslr_get_object(pool, *r);
+			break;
+		default:
+			return EINVAL;
+		}
+		goto again;
+	default:
+		return EINVAL;
+		break;
+	}
+	return 0;
+}
+
+
 #define NETMAP_CONFIG_POOL_SIZE (1<<12)
 
 int
@@ -329,9 +393,10 @@ netmap_config_parse(struct netmap_config *c, int locked)
 	D("parse OK: ty %u len %u ptr %u", r.ty, r.len, r.ptr);
 	if (!locked)
 		NMG_LOCK();
-	error = netmap_interp_root.up.interp(&netmap_interp_root.up, r, pool, o);
+	r = netmap_interp_root.up.interp(&netmap_interp_root.up, r, pool);
 	if (!locked)
 		NMG_UNLOCK();
+	error = netmap_config_dump(pool, &r, o, 0, 0);
 	netmap_confbuf_trunc(o);
 out:
 	free(pool, M_DEVBUF);
@@ -399,67 +464,85 @@ out:
 	return ret;
 }
 
-#define netmap_confbuf_error(cb, format, ...) 					\
-	netmap_confbuf_printf(cb, "\"err\" : "					\
-			"{ \"debug\" : %d, \"msg\" : \"" format "\" }", 	\
-			__LINE__, ##__VA_ARGS__)
+#define NM_DEBUG_CONFIG
 
-
-static int
-netmap_interp_list_interp(struct netmap_interp *ip,
-		struct _jpo r, const char *pool,
-		struct netmap_confbuf *out)
+static struct _jpo
+#ifdef NM_DEBUG_CONFIG
+#define netmap_interp_error(p, fmt, ...)				\
+	_netmap_interp_error(p, "[%d] " fmt, __LINE__, ##__VA_ARGS__)
+_netmap_interp_error(char *pool, const char *format, ...)
+#else /* NM_DEBUG_CONFIG */
+netmap_interp_error(char *pool, const char *format, ...)
+#endif /* NM_DEBUF_CONFIG */
 {
-	int err;
+	va_list ap;
+	struct _jpo r, *o;
+#define NM_INTERP_ERRSIZE 128
+	char buf[NM_INTERP_ERRSIZE + 1];
+	int rv;
+
+	r = jslr_new_object(pool, 1);
+	if (r.ty == JPO_ERR)
+		return r;
+	o = jslr_get_object(pool, r);
+	o++;
+	*o = jslr_new_string(pool, "err");
+	if (o->ty == JPO_ERR)
+		return *o;
+	o++;
+	va_start(ap, format);
+	rv = vsnprintf(buf, NM_INTERP_ERRSIZE, format, ap);
+	va_end(ap);
+	if (rv < 0 || rv >= NM_INTERP_ERRSIZE)
+		return (struct _jpo) {.ty = JPO_ERR};
+	*o = jslr_new_string(pool, buf);
+	if (o->ty == JPO_ERR)
+		return *o;
+	return r;
+#undef	NM_INTERP_ERRSIZE
+}
+
+static struct _jpo
+netmap_interp_list_interp(struct netmap_interp *ip, struct _jpo r, char *pool)
+{
 	struct _jpo *po;
 	int i, len;
 	struct netmap_interp_list *il = (struct netmap_interp_list *)ip;
 
-	err = netmap_confbuf_printf(out, "{");
-	if (err)
-		goto out;
-
-	if (r.ty != JPO_PTR && r.len != JPO_OBJECT) {
-		err = netmap_confbuf_error(out, "need object");
+	if (r.ty != JPO_PTR || r.len != JPO_OBJECT) {
+		r = netmap_interp_error(pool, "need object");
 		goto out;
 	}
 
 	po = jslr_get_object(pool, r);
 	if (po == NULL || po->ty != JPO_OBJECT) {
-		err = netmap_confbuf_error(out, "internal error");
+		r = netmap_interp_error(pool, "internal error");
 		goto out;
 	}
 
 	len = po->len;
 	po++;
 	for (i = 0; i < len; i++) {
-		const char *name = jslr_get_string(pool, *po);
+		const char *name = jslr_get_string(pool, *po++);
 		struct netmap_interp *si;
 
 		if (name == NULL) {
-			err = netmap_confbuf_error(out, "internal error");
+			r = netmap_interp_error(pool, "internal error");
 			goto out;
 		}
 		si = netmap_interp_list_search(il, name);
 		if (si == NULL) {
-			err = netmap_confbuf_error(out, "%s: not found", name);
+			r = netmap_interp_error(pool, "%s: not found", name);
 			goto out;
 		}
 		D("found %s", name);
-		err = netmap_confbuf_printf(out, "\"%s\" :", name);
-		if (err)
-			goto out;
-		po++;
-		si->interp(si, *po, pool, out);
+		*po = si->interp(si, *po, pool);
 		po++;
 	}
 
 out:
-	err = netmap_confbuf_printf(out, "}\n");
-
-	return err;
+	return r;
 }
-
 
 int
 netmap_interp_list_init(struct netmap_interp_list *il, u_int nelem)
@@ -548,5 +631,6 @@ netmap_interp_list_search(struct netmap_interp_list *il, const char *name)
 		return NULL;
 	return il->list[i].ip;
 }
+
 
 #endif /* WITH_NMCONF */
