@@ -2,6 +2,9 @@
  * header for json parsing library
  */
 
+#ifndef NETMAP_JSONLR_H
+#define NETMAP_JSONLR_H
+
 enum _jpo_type {
 	JPO_ERR = 0,
 	JPO_CHAR,	/* also bool and null */
@@ -34,7 +37,7 @@ enum _jp_err {
 struct _jpo { /* object */
 	unsigned int ty:3;
 	unsigned int len:13;
-	unsigned int ptr:16;	/* offset either in the pool or in buf */
+	unsigned int ptr:16;	/* offset in the pool */
 };
 
 struct _jp;
@@ -49,3 +52,4 @@ struct _jp_stream {
  */
 struct _jpo jslr_parse(struct _jp_stream *js, char *pool, uint32_t pool_len);
 
+#endif /* NETMAP_JSONLR_H */

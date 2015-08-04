@@ -1683,6 +1683,35 @@ int netmap_config_read(struct netmap_config *, struct uio *);
 int netmap_config_write(struct netmap_config *, struct uio *);
 int netmap_config_parse(struct netmap_config*);
 
+#include "jsonlr.h"
+
+struct netmap_interp {
+	int (*interp)(struct netmap_interp *, struct _jpo,
+			const char *pool, struct netmap_confbuf *out);
+};
+
+struct netmap_interp_list_elem {
+#define	NETMAP_CONFIG_MAXNAME	64
+	char name[NETMAP_CONFIG_MAXNAME];
+	struct netmap_interp *ip;
+};
+
+struct netmap_interp_list {
+	struct netmap_interp up;
+	struct netmap_interp_list_elem *list;
+	u_int minelem;
+	u_int nelem;
+	u_int nextfree;
+};
+
+int netmap_interp_list_init(struct netmap_interp_list *, u_int nelem);
+void netmap_interp_list_uninit(struct netmap_interp_list *);
+int netmap_interp_list_add(struct netmap_interp_list *, const char *,
+		struct netmap_interp *);
+int netmap_interp_list_del(struct netmap_interp_list *, const char *);
+struct netmap_interp *netmap_interp_list_search(struct netmap_interp_list *,
+		const char *);
+
 #else /* ! WITH_NMCONF */
 
 struct netmap_config {};

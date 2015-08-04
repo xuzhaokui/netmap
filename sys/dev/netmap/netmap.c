@@ -3143,6 +3143,11 @@ netmap_rx_irq(struct ifnet *ifp, u_int q, u_int *work_done)
 	return 1;
 }
 
+#ifdef WITH_NMCONF
+struct netmap_interp_list netmap_interp_root;
+struct netmap_interp_list netmap_interp_ports;
+#endif /* WITH_NMCONF */
+
 
 /*
  * Module loader and unloader
@@ -3168,6 +3173,11 @@ netmap_fini(void)
 	netmap_uninit_bridges();
 	netmap_mem_fini();
 	NMG_LOCK_DESTROY();
+#ifdef WITH_NMCONF
+	netmap_interp_list_uninit(&netmap_interp_ports);
+	netmap_interp_list_del(&netmap_interp_root, "port");
+	netmap_interp_list_uninit(&netmap_interp_root);
+#endif /* WITH_NMCONF */
 	printf("netmap: unloaded module.\n");
 }
 
@@ -3178,6 +3188,17 @@ netmap_init(void)
 	int error;
 
 	NMG_LOCK_INIT();
+
+#ifdef WITH_NMCONF
+	error = netmap_interp_list_init(&netmap_interp_root, 3);
+	if (error != 0)
+		goto fail;
+	error = netmap_interp_list_init(&netmap_interp_ports, 10);
+	if (error != 0)
+		goto fail;
+	error = netmap_interp_list_add(&netmap_interp_root, "port",
+			&netmap_interp_ports.up);
+#endif /* WITH_NMCONF */
 
 	error = netmap_mem_init();
 	if (error != 0)

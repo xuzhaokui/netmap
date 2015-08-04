@@ -189,7 +189,7 @@ netmap_confbuf_pre_read(struct netmap_confbuf *cb, u_int *size)
 	}
 }
 
-void
+static void
 netmap_confbuf_post_read(struct netmap_confbuf *cb, u_int size)
 {
 	if (cb->next_r == cb->readp->size) {
@@ -207,7 +207,7 @@ struct netmap_jp_stream {
 	struct netmap_confbuf *cb;
 };
 
-int
+static int
 netmap_confbuf_peek(struct _jp_stream *jp)
 {
 	struct netmap_jp_stream *n = (struct netmap_jp_stream *)jp;
@@ -219,7 +219,7 @@ netmap_confbuf_peek(struct _jp_stream *jp)
 	return *(char *)p;
 }
 
-void
+static void
 netmap_confbuf_consume(struct _jp_stream *jp)
 {
 	struct netmap_jp_stream *n = (struct netmap_jp_stream *)jp;
@@ -227,7 +227,7 @@ netmap_confbuf_consume(struct _jp_stream *jp)
 	netmap_confbuf_post_read(cb, 1);
 }
 
-void
+static void
 netmap_confbuf_destroy(struct netmap_confbuf *cb)
 {
 	struct nm_confbuf_data *d = cb->readp;
@@ -349,6 +349,104 @@ out:
 	NM_MTX_UNLOCK(c->mux);
 
 	return ret;
+}
+
+
+static int
+netmap_interp_list_interp(struct netmap_interp *ip,
+		struct _jpo jpo, const char *pool,
+		struct netmap_confbuf *out)
+{
+	return 0;
+}
+
+
+int
+netmap_interp_list_init(struct netmap_interp_list *il, u_int nelem)
+{
+	il->up.interp = netmap_interp_list_interp;
+	il->minelem = nelem;
+	il->list = malloc(sizeof(*il->list) * nelem, M_DEVBUF, M_ZERO);
+	if (il->list == NULL)
+		return ENOMEM;
+	il->nelem = nelem;
+	return 0;
+}
+
+void
+netmap_interp_list_uninit(struct netmap_interp_list *il)
+{
+	free(il->list, M_DEVBUF);
+	memset(il, 0, sizeof(*il));
+}
+
+int
+netmap_interp_list_add(struct netmap_interp_list *il, const char *name,
+		struct netmap_interp *ip)
+{
+	struct netmap_interp_list_elem *e, *newlist;
+
+	if (il->nextfree >= il->nelem) {
+		u_int newnelem = il->nelem * 2;
+		newlist = realloc(il->list, sizeof(*il->list) * newnelem, M_DEVBUF, M_ZERO);
+		if (newlist == NULL)
+			return ENOMEM;
+		il->list = newlist;
+		il->nelem = newnelem;
+	}
+	e = &il->list[il->nextfree++];
+	strncpy(e->name, name, NETMAP_CONFIG_MAXNAME);
+	e->ip = ip;
+	return 0;
+}
+
+static int
+_netmap_interp_list_search(struct netmap_interp_list *il, const char *name)
+{
+	int i;
+	for (i = 0; i < il->nelem; i++) {
+		struct netmap_interp_list_elem *e = &il->list[i];
+		if (strncmp(name, e->name, NETMAP_CONFIG_MAXNAME) == 0)
+			break;
+	}
+	return i;
+}
+
+int
+netmap_interp_list_del(struct netmap_interp_list *il, const char *name)
+{
+	int i = _netmap_interp_list_search(il, name);
+	struct netmap_interp_list_elem *e1, *e2;
+	if (i == il->nelem)
+		return ENOENT;
+	e1 = &il->list[i];
+	e2 = &il->list[il->nextfree];
+	strncpy(e1->name, e2->name, NETMAP_CONFIG_MAXNAME);
+	e1->ip = e2->ip;
+	il->nextfree--;
+	if (il->nelem > il->minelem && il->nextfree < il->nelem / 2) {
+		struct netmap_interp_list_elem *newlist;
+		u_int newnelem = il->nelem / 2;
+		if (newnelem < il->minelem)
+			newnelem = il->minelem;
+		newlist = realloc(il->list, newnelem, M_DEVBUF, M_ZERO);
+		if (newlist == NULL) {
+			D("out of memory when trying to release memory?");
+			return 0; /* not fatal */
+		}
+		il->list = newlist;
+		il->nelem = newnelem;
+	}
+	return 0;
+}
+
+struct netmap_interp *
+netmap_interp_list_search(struct netmap_interp_list *il, const char *name)
+{
+	int i = _netmap_interp_list_search(il, name);
+	if (i == il->nelem)
+		return NULL;
+	return il->list[i].ip;
 }
 
 #endif /* WITH_NMCONF */
