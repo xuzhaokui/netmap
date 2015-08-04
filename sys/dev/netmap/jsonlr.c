@@ -435,7 +435,8 @@ jslr_1(struct _jp *p)
 	c = s->peek(s);
 	if (c == 0 || in_map("]}:,", c)) { /* NUL or tokens */
 		r.ptr = c;
-		s->consume(s);
+		if (c)
+			s->consume(s);
 	} else if (c == '"') { /* start string */
 		r = jslr_string(p);
 #ifdef JSLR_SLOPPY
