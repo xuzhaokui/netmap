@@ -154,7 +154,7 @@ void do_read()
 	ret = read(fd, buf, size);
 	output_err(ret, "read(%d, %p, %d)=%d", fd, buf, size, ret);
 	if (ret > 0)
-		printf("%*s", ret, buf);
+		printf("%*.*s", ret, ret, buf);
 	free(buf);
 }
 
