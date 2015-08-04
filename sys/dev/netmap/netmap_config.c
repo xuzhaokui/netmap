@@ -164,11 +164,12 @@ int
 netmap_confbuf_printf(struct netmap_confbuf *cb, const char *format, ...)
 {
 	va_list ap;
-	size_t size = strlen(format) + 1, rv;
+	size_t rv;
+        u_int size = 64, *psz = &size;
 	void *p;
 
 	for (;;) {
-		p = netmap_confbuf_pre_write(cb, size, NULL);
+		p = netmap_confbuf_pre_write(cb, size, psz);
 		if (p == NULL)
 			return ENOMEM;
 		va_start(ap, format);
@@ -176,8 +177,9 @@ netmap_confbuf_printf(struct netmap_confbuf *cb, const char *format, ...)
 		va_end(ap);
 		if (rv < size)
 			break;
-		D("rv %zd size %zd: retry", rv, size);
+		D("rv %zd size %u: retry", rv, size);
 		size = rv + 1;
+		psz = NULL;
 	}
 	if (rv >= 0)
 		netmap_confbuf_post_write(cb, rv);
