@@ -184,21 +184,18 @@ netmap_confbuf_printf(struct netmap_confbuf *cb, const char *format, ...)
 	return 0;
 }
 
-#if 0
 #define netmap_confbuf_iprintf(cb, i, fmt, ...)					\
 	({									\
-		int __j, __rv;							\
-		for (__j = 0; __j < (i); __j++)					\
-			if ((__rv = netmap_confbuf_printf(cb, "  ")));		\
+		int __j, __rv = 0;						\
+		for (__j = 0; __j < (i); __j++)	{				\
+			__rv = netmap_confbuf_printf(cb, "    ");		\
+	 		if (__rv)						\
 	 			break;						\
+	 	}								\
 	 	if (__rv == 0)							\
 			__rv = netmap_confbuf_printf(cb, fmt, ##__VA_ARGS__);	\
 	 	__rv;								\
 	 })
-#else
-#define netmap_confbuf_iprintf(cb, i, fmt, ...) netmap_confbuf_printf(cb, fmt, ##__VA_ARGS__)
-#endif
-
 
 /* prepare for a read of size bytes;
  * returns a pointer to a buffer which is at least size bytes big.
@@ -315,28 +312,35 @@ static int
 netmap_config_dump(const char *pool, struct _jpo *r,
 		struct netmap_confbuf *out, int ind, int cont)
 {
-	int i;
+	int i, error = 0;
 again:
 	switch (r->ty) {
 	case JPO_NUM:
-		netmap_confbuf_iprintf(out, (cont ? 0 : ind), "%ld\n", jslr_get_num(pool, *r));
+		return netmap_confbuf_iprintf(out, (cont ? 0 : ind),
+				"%ld\n", jslr_get_num(pool, *r));
 		break;
 	case JPO_STRING:
-		netmap_confbuf_iprintf(out, (cont ? 0 : ind), "\"%s\"\n", jslr_get_string(pool, *r));
+		return netmap_confbuf_iprintf(out, (cont ? 0 : ind),
+				"\"%s\"\n", jslr_get_string(pool, *r));
 		break;
 	case JPO_ARRAY:
-		netmap_confbuf_iprintf(out, (cont ? 0 : ind), "[\n");
-		for (i = 0; i < r->len; i++)
-		    netmap_config_dump(pool, r + 1 + i, out, ind + 1, 0);
-		netmap_confbuf_iprintf(out, ind, "]\n");
+		error = netmap_confbuf_iprintf(out, (cont ? 0 : ind), "[\n");
+		for (i = 0; !error && i < r->len; i++) {
+			error = netmap_config_dump(pool, r + 1 + i, out, ind + 1, 0);
+		}
+		if (!error)
+			error = netmap_confbuf_iprintf(out, ind, "]\n");
 		break;
 	case JPO_OBJECT:
-		netmap_confbuf_iprintf(out, (cont ? 0: ind), "{\n");
-		for (i = 0; i < 2 * r->len; i += 2) {
-			netmap_confbuf_iprintf(out, ind + 1, "\"%s\": ", jslr_get_string(pool, *(r + 1 + i)));
-			netmap_config_dump(pool, r + 2 + i, out, ind + 1, 1);
+		error = netmap_confbuf_iprintf(out, (cont ? 0: ind), "{\n");
+		for (i = 0; !error && (i < 2 * r->len); i += 2) {
+			error = netmap_confbuf_iprintf(out, ind + 1, "\"%s\": ",
+					jslr_get_string(pool, *(r + 1 + i)));
+			if (!error)
+				error = netmap_config_dump(pool, r + 2 + i, out, ind + 1, 1);
 		}
-		netmap_confbuf_iprintf(out, ind, "}\n");
+		if (!error)
+			netmap_confbuf_iprintf(out, ind, "}\n");
 		break;
 	case JPO_PTR:
 		switch (r->len) {
@@ -351,10 +355,10 @@ again:
 		}
 		goto again;
 	default:
-		return EINVAL;
+		error = EINVAL;
 		break;
 	}
-	return 0;
+	return error;
 }
 
 
