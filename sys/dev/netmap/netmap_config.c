@@ -142,7 +142,7 @@ out:
 	return ret;
 }
 
-void
+static void
 netmap_confbuf_post_write(struct netmap_confbuf *cb, u_int size)
 {
 	if (cb->next_w == cb->writep->size) {
