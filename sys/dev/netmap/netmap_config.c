@@ -232,6 +232,13 @@ netmap_confbuf_post_read(struct netmap_confbuf *cb, u_int size)
 	cb->next_r += size;
 }
 
+static int
+netmap_confbuf_empty(struct netmap_confbuf *cb)
+{
+	u_int sz = 1;
+	return (netmap_confbuf_pre_read(cb, &sz) == NULL);
+}
+
 struct netmap_jp_stream {
 	struct _jp_stream stream;
 	struct netmap_confbuf *cb;
@@ -307,6 +314,9 @@ netmap_config_parse(struct netmap_config *c, int locked)
 	int error = 0;
 
 	netmap_confbuf_trunc(i);
+	if (netmap_confbuf_empty(i))
+		return 0;
+
 	pool = malloc(pool_len, M_DEVBUF, M_ZERO);
 	if (pool == NULL)
 		return ENOMEM;
