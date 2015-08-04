@@ -294,33 +294,35 @@ netmap_config_parse(struct netmap_config *c, int locked)
 {
 	char *pool;
 	uint32_t pool_len = NETMAP_CONFIG_POOL_SIZE;
-	struct netmap_confbuf *cb = &c->buf[0];
+	struct netmap_confbuf *i = &c->buf[0],
+			      *o = &c->buf[1];
 	struct netmap_jp_stream njs = {
 		.stream = {
 			.peek = netmap_confbuf_peek,
 			.consume = netmap_confbuf_consume,
 		},
-		.cb = cb,
+		.cb = i,
 	};
 	struct _jpo r;
 	int error = 0;
 
-	netmap_confbuf_trunc(cb);
+	netmap_confbuf_trunc(i);
 	pool = malloc(pool_len, M_DEVBUF, M_ZERO);
 	if (pool == NULL)
 		return ENOMEM;
 	r = jslr_parse(&njs.stream, pool, pool_len);
 	if (r.ty == JPO_ERR) {
 		D("parse error: %d", r.ptr);
-		netmap_confbuf_destroy(njs.cb);
+		netmap_confbuf_destroy(i);
 		goto out;
 	}
 	D("parse OK: ty %u len %u ptr %u", r.ty, r.len, r.ptr);
 	if (!locked)
 		NMG_LOCK();
-	error = netmap_interp_root.up.interp(&netmap_interp_root.up, r, pool, &c->buf[1]);
+	error = netmap_interp_root.up.interp(&netmap_interp_root.up, r, pool, o);
 	if (!locked)
 		NMG_UNLOCK();
+	netmap_confbuf_trunc(o);
 out:
 	free(pool, M_DEVBUF);
 	return error;
