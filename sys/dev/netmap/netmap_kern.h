@@ -1712,6 +1712,9 @@ int netmap_interp_list_del(struct netmap_interp_list *, const char *);
 struct netmap_interp *netmap_interp_list_search(struct netmap_interp_list *,
 		const char *);
 
+extern struct netmap_interp_list netmap_interp_root;
+extern struct netmap_interp_list netmap_interp_ports;
+
 #else /* ! WITH_NMCONF */
 
 struct netmap_config {};

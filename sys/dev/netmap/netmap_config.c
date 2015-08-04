@@ -160,6 +160,29 @@ netmap_confbuf_post_write(struct netmap_confbuf *cb, u_int size)
 
 }
 
+int
+netmap_confbuf_printf(struct netmap_confbuf *cb, const char *format, ...)
+{
+	va_list ap;
+	size_t size = strlen(format) + 1, rv;
+	void *p;
+
+	for (;;) {
+		p = netmap_confbuf_pre_write(cb, size, NULL);
+		if (p == NULL)
+			return ENOMEM;
+		va_start(ap, format);
+		rv = vsnprintf(p, size, format, ap);
+		va_end(ap);
+		if (rv < size)
+			break;
+		D("rv %zd size %zd: retry", rv, size);
+		size = rv + 1;
+	}
+	if (rv >= 0)
+		netmap_confbuf_post_write(cb, rv);
+	return 0;
+}
 /* prepare for a read of size bytes;
  * returns a pointer to a buffer which is at least size bytes big.
  * Note that, on return, size may be smaller than asked for;
@@ -370,7 +393,7 @@ netmap_interp_list_interp(struct netmap_interp *ip,
 		struct _jpo jpo, const char *pool,
 		struct netmap_confbuf *out)
 {
-	return 0;
+	return netmap_confbuf_printf(out, "Hello, world!\n");
 }
 
 
