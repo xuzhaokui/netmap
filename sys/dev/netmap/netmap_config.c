@@ -399,13 +399,65 @@ out:
 	return ret;
 }
 
+#define netmap_confbuf_error(cb, format, ...) 					\
+	netmap_confbuf_printf(cb, "\"err\" : "					\
+			"{ \"debug\" : %d, \"msg\" : \"" format "\" }", 	\
+			__LINE__, ##__VA_ARGS__)
+
 
 static int
 netmap_interp_list_interp(struct netmap_interp *ip,
-		struct _jpo jpo, const char *pool,
+		struct _jpo r, const char *pool,
 		struct netmap_confbuf *out)
 {
-	return netmap_confbuf_printf(out, "Hello, world!\n");
+	int err;
+	struct _jpo *po;
+	int i, len;
+	struct netmap_interp_list *il = (struct netmap_interp_list *)ip;
+
+	err = netmap_confbuf_printf(out, "{");
+	if (err)
+		goto out;
+
+	if (r.ty != JPO_PTR && r.len != JPO_OBJECT) {
+		err = netmap_confbuf_error(out, "need object");
+		goto out;
+	}
+
+	po = jslr_get_object(pool, r);
+	if (po == NULL || po->ty != JPO_OBJECT) {
+		err = netmap_confbuf_error(out, "internal error");
+		goto out;
+	}
+
+	len = po->len;
+	po++;
+	for (i = 0; i < len; i++) {
+		const char *name = jslr_get_string(pool, *po);
+		struct netmap_interp *si;
+
+		if (name == NULL) {
+			err = netmap_confbuf_error(out, "internal error");
+			goto out;
+		}
+		si = netmap_interp_list_search(il, name);
+		if (si == NULL) {
+			err = netmap_confbuf_error(out, "%s: not found", name);
+			goto out;
+		}
+		D("found %s", name);
+		err = netmap_confbuf_printf(out, "\"%s\" :", name);
+		if (err)
+			goto out;
+		po++;
+		si->interp(si, *po, pool, out);
+		po++;
+	}
+
+out:
+	err = netmap_confbuf_printf(out, "}\n");
+
+	return err;
 }
 
 
