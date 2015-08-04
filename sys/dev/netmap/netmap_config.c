@@ -512,16 +512,16 @@ static struct _jpo
 netmap_interp_list_interp(struct netmap_interp *ip, struct _jpo r, char *pool)
 {
 	struct _jpo *po;
-	int i, len;
+	int i, len, ty = r.len;
 	struct netmap_interp_list *il = (struct netmap_interp_list *)ip;
 
-	if (r.ty != JPO_PTR || r.len != JPO_OBJECT) {
-		r = netmap_interp_error(pool, "need object");
+	if (r.ty != JPO_PTR || (ty != JPO_OBJECT && ty != JPO_ARRAY)) {
+		r = netmap_interp_error(pool, "need object or array");
 		goto out;
 	}
 
-	po = jslr_get_object(pool, r);
-	if (po == NULL || po->ty != JPO_OBJECT) {
+	po = (ty == JPO_OBJECT ? jslr_get_object(pool, r) : jslr_get_array(pool, r));
+	if (po == NULL || po->ty != ty) {
 		r = netmap_interp_error(pool, "internal error");
 		goto out;
 	}
@@ -529,20 +529,24 @@ netmap_interp_list_interp(struct netmap_interp *ip, struct _jpo r, char *pool)
 	len = po->len;
 	po++;
 	for (i = 0; i < len; i++) {
-		const char *name = jslr_get_string(pool, *po++);
-		struct netmap_interp *si;
+		if (ty == JPO_OBJECT) {
+			const char *name = jslr_get_string(pool, *po++);
+			struct netmap_interp *si;
 
-		if (name == NULL) {
-			r = netmap_interp_error(pool, "internal error");
-			goto out;
+			if (name == NULL) {
+				r = netmap_interp_error(pool, "internal error");
+				goto out;
+			}
+			si = netmap_interp_list_search(il, name);
+			if (si == NULL) {
+				r = netmap_interp_error(pool, "%s: not found", name);
+				goto out;
+			}
+			D("found %s", name);
+			*po = si->interp(si, *po, pool);
+		} else {
+			*po = netmap_interp_list_interp(ip, *po, pool);
 		}
-		si = netmap_interp_list_search(il, name);
-		if (si == NULL) {
-			r = netmap_interp_error(pool, "%s: not found", name);
-			goto out;
-		}
-		D("found %s", name);
-		*po = si->interp(si, *po, pool);
 		po++;
 	}
 
