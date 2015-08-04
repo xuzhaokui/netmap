@@ -83,6 +83,13 @@ struct nm_confbuf_data {
 	char data[];
 };
 
+static void
+netmap_confbuf_trunc(struct netmap_confbuf *cb)
+{
+	if (cb->writep)
+		cb->writep->size = cb->next_w;
+}
+
 /* prepare for a write of req_size bytes;
  * returns a pointer to a buffer that can be used for writing,
  * or NULL if not enough space is available;
@@ -121,7 +128,7 @@ netmap_confbuf_pre_write(struct netmap_confbuf *cb, u_int req_size, u_int *avl_s
 		 * is not big enough. Truncate the chunk and
 		 * move to the next one.
 		 */
-		d->size = cb->next_w;
+		netmap_confbuf_trunc(cb);
 		d->chain = nd;
 	}
 	cb->n_data++;
@@ -264,16 +271,18 @@ netmap_config_parse(struct netmap_config *c)
 {
 	char *pool;
 	uint32_t pool_len = NETMAP_CONFIG_POOL_SIZE;
+	struct netmap_confbuf *cb = &c->buf[0];
 	struct netmap_jp_stream njs = {
 		.stream = {
 			.peek = netmap_confbuf_peek,
 			.consume = netmap_confbuf_consume,
 		},
-		.cb = &c->buf[0],
+		.cb = cb,
 	};
 	struct _jpo r;
 	int error = 0;
 
+	netmap_confbuf_trunc(cb);
 	pool = malloc(pool_len, M_DEVBUF, M_ZERO);
 	if (pool == NULL)
 		return ENOMEM;
