@@ -1675,6 +1675,7 @@ struct netmap_confbuf {
 struct netmap_config {
 	NM_MTX_T mux;
 	struct netmap_confbuf buf[2]; /* 0 in, 1 out */
+	int written;
 };
 void netmap_config_init(struct netmap_config*);
 void netmap_config_uninit(struct netmap_config*, int locked);

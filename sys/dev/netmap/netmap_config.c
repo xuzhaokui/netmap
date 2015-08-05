@@ -452,6 +452,7 @@ netmap_config_write(struct netmap_config *c, struct uio *uio)
 		if (ret)
 			goto out;
 		netmap_confbuf_post_write(i, s);
+		c->written = 1;
 	}
 
 out:
@@ -463,9 +464,15 @@ int
 netmap_config_read(struct netmap_config *c, struct uio *uio)
 {
 	int ret = 0;
-	struct netmap_confbuf *o = &c->buf[1];
+	struct netmap_confbuf *i = &c->buf[0],
+			      *o = &c->buf[1];
 
 	NM_MTX_LOCK(c->mux);
+
+	if (!c->written) {
+		netmap_confbuf_printf(i, "dump");
+		c->written = 1;
+	}
 
 	ret = netmap_config_parse(c, 0 /* not locked */);
 	if (ret)
