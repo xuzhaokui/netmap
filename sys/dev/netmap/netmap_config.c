@@ -319,30 +319,47 @@ again:
 	switch (r->ty) {
 	case JPO_NUM:
 		return netmap_confbuf_iprintf(out, (cont ? 0 : ind),
-				"%ld\n", jslr_get_num(pool, *r));
+				"%ld", jslr_get_num(pool, *r));
 		break;
 	case JPO_STRING:
 		return netmap_confbuf_iprintf(out, (cont ? 0 : ind),
-				"\"%s\"\n", jslr_get_string(pool, *r));
+				"\"%s\"", jslr_get_string(pool, *r));
 		break;
 	case JPO_ARRAY:
-		error = netmap_confbuf_iprintf(out, (cont ? 0 : ind), "[\n");
+		error = netmap_confbuf_iprintf(out, (cont ? 0 : ind), "[");
 		for (i = 0; !error && i < r->len; i++) {
-			error = netmap_config_dump(pool, r + 1 + i, out, ind + 1, 0);
+			if (i)
+				error = netmap_confbuf_printf(out, ",");
+			if (!error)
+				error = netmap_confbuf_printf(out, "\n");
+			if (!error)
+				error = netmap_config_dump(pool, r + 1 + i,
+					out, ind + 1, 0);
 		}
 		if (!error)
-			error = netmap_confbuf_iprintf(out, ind, "]\n");
+			error = netmap_confbuf_printf(out, "\n");
+		if (!error)
+			error = netmap_confbuf_iprintf(out, ind, "]");
 		break;
 	case JPO_OBJECT:
-		error = netmap_confbuf_iprintf(out, (cont ? 0: ind), "{\n");
+		error = netmap_confbuf_iprintf(out, (cont ? 0: ind), "{");
 		for (i = 0; !error && (i < 2 * r->len); i += 2) {
-			error = netmap_confbuf_iprintf(out, ind + 1, "\"%s\": ",
+			if (i)
+				error = netmap_confbuf_printf(out, ",");
+			if (!error)
+				error = netmap_confbuf_printf(out, "\n");
+			if (!error)
+				error = netmap_confbuf_iprintf(out, ind + 1,
+					"\"%s\": ",
 					jslr_get_string(pool, *(r + 1 + i)));
 			if (!error)
-				error = netmap_config_dump(pool, r + 2 + i, out, ind + 1, 1);
+				error = netmap_config_dump(pool, r + 2 + i,
+					out, ind + 1, 1);
 		}
 		if (!error)
-			netmap_confbuf_iprintf(out, ind, "}\n");
+			error = netmap_confbuf_printf(out, "\n");
+		if (!error)
+			netmap_confbuf_iprintf(out, ind, "}");
 		break;
 	case JPO_PTR:
 		switch (r->len) {
@@ -403,6 +420,8 @@ netmap_config_parse(struct netmap_config *c, int locked)
 	if (!locked)
 		NMG_UNLOCK();
 	error = netmap_config_dump(pool, &r, o, 0, 0);
+	if (!error)
+		netmap_confbuf_printf(o, "\n");
 	netmap_confbuf_trunc(o);
 out:
 	free(pool, M_DEVBUF);
