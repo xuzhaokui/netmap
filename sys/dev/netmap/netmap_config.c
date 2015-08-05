@@ -534,6 +534,16 @@ netmap_interp_list_interp(struct netmap_interp *ip, struct _jpo r, char *pool)
 	int i, len, ty = r.len;
 	struct netmap_interp_list *il = (struct netmap_interp_list *)ip;
 
+	if (r.ty == JPO_STRING) {
+		const char *str = jslr_get_string(pool, r);
+		if (strcmp("dump", str) == 0) {
+			r = il->up.dump(ip, pool);
+			goto out;
+		}
+		r = netmap_interp_error(pool, "not recognized: %s", str);
+		goto out;
+	}
+
 	if (r.ty != JPO_PTR || (ty != JPO_OBJECT && ty != JPO_ARRAY)) {
 		r = netmap_interp_error(pool, "need object or array");
 		goto out;
@@ -573,10 +583,37 @@ out:
 	return r;
 }
 
+static struct _jpo
+netmap_interp_list_dump(struct netmap_interp *ip, char *pool)
+{
+	struct _jpo *po, r;
+	struct netmap_interp_list *il = (struct netmap_interp_list *)ip;
+	int i, len = il->nextfree;
+
+	r = jslr_new_object(pool, len);
+	if (r.ty == JPO_ERR)
+		return r;
+	po = jslr_get_object(pool, r);
+	po++;
+	for (i = 0; i < len; i++) {
+		struct netmap_interp_list_elem *e = &il->list[i];
+		*po = jslr_new_string(pool, e->name);
+		if (po->ty == JPO_ERR)
+			return *po;
+		po++;
+		*po = e->ip->dump(e->ip, pool);
+		if (po->ty == JPO_ERR)
+			return *po;
+		po++;
+	}
+	return r;
+}
+
 int
 netmap_interp_list_init(struct netmap_interp_list *il, u_int nelem)
 {
 	il->up.interp = netmap_interp_list_interp;
+	il->up.dump = netmap_interp_list_dump;
 	il->minelem = nelem;
 	il->list = malloc(sizeof(*il->list) * nelem, M_DEVBUF, M_ZERO);
 	if (il->list == NULL)
