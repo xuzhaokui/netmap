@@ -421,7 +421,7 @@ netmap_config_parse(struct netmap_config *c, int locked)
 		NMG_UNLOCK();
 	error = netmap_config_dump(pool, &r, o, 0, 0);
 	if (!error)
-		netmap_confbuf_printf(o, "\n");
+		error = netmap_confbuf_printf(o, "\n");
 	netmap_confbuf_trunc(o);
 out:
 	free(pool, M_DEVBUF);
