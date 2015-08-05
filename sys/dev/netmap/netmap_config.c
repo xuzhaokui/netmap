@@ -644,7 +644,8 @@ netmap_interp_list_add(struct netmap_interp_list *il, const char *name,
 
 	if (il->nextfree >= il->nelem) {
 		u_int newnelem = il->nelem * 2;
-		newlist = realloc(il->list, sizeof(*il->list) * newnelem, M_DEVBUF, M_ZERO);
+		newlist = realloc(il->list, sizeof(*il->list) * newnelem,
+				M_DEVBUF, M_ZERO);
 		if (newlist == NULL)
 			return ENOMEM;
 		il->list = newlist;
