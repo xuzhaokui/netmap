@@ -2365,26 +2365,53 @@ netmap_uninit_bridges2(struct nm_bridge *b, u_int n)
 	free(b, M_DEVBUF);
 }
 
+#ifdef WITH_NMCONF
+struct netmap_interp_list netmap_interp_bridge;
+#endif /* WITH_NMCONF */
+
+void netmap_uninit_bridges(void);
 int
 netmap_init_bridges(void)
 {
+	int error = 0;
 #ifdef CONFIG_NET_NS
-	return netmap_bns_register();
+	error = netmap_bns_register();
+	if (error)
+		return error;
 #else
 	nm_bridges = netmap_init_bridges2(NM_BRIDGES);
-	if (nm_bridges == NULL)
-		return ENOMEM;
+	if (nm_bridges == NULL) {
+		error = ENOMEM;
+		return error;
+	}
+#endif /* CONFIG_NET_NS */
+#ifdef WITH_NMCONF
+	error = netmap_interp_list_init(&netmap_interp_bridge, 10);
+	if (error)
+		goto fail;
+	error = netmap_interp_list_add(&netmap_interp_root, "bridge",
+			&netmap_interp_bridge.up);
+	if (error)
+		goto fail;
+#endif /* WITH_NMCONF */
 	return 0;
-#endif
+
+fail:
+	netmap_uninit_bridges();
+	return error;
 }
 
 void
 netmap_uninit_bridges(void)
 {
+#ifdef WITH_NMCONF
+	netmap_interp_list_del(&netmap_interp_root, "bridge");
+	netmap_interp_list_uninit(&netmap_interp_bridge);
+#endif /* WITH_NMCONF */
 #ifdef CONFIG_NET_NS
 	netmap_bns_unregister();
 #else
 	netmap_uninit_bridges2(nm_bridges, NM_BRIDGES);
-#endif
+#endif /* CONFIG_NET_NS */
 }
 #endif /* WITH_VALE */

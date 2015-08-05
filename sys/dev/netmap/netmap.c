@@ -3191,13 +3191,15 @@ netmap_init(void)
 
 #ifdef WITH_NMCONF
 	error = netmap_interp_list_init(&netmap_interp_root, 3);
-	if (error != 0)
+	if (error)
 		goto fail;
 	error = netmap_interp_list_init(&netmap_interp_ports, 10);
-	if (error != 0)
+	if (error)
 		goto fail;
 	error = netmap_interp_list_add(&netmap_interp_root, "port",
 			&netmap_interp_ports.up);
+	if (error)
+		goto fail;
 #endif /* WITH_NMCONF */
 
 	error = netmap_mem_init();

@@ -1613,17 +1613,44 @@ netmap_mem_global_delete(struct netmap_mem_d *nmd)
 	NMA_LOCK_DESTROY(&nm_mem);
 }
 
+#ifdef WITH_NMCONF
+struct netmap_interp_list netmap_interp_mem;
+#endif /* WITH_NMCONF */
+
 int
 netmap_mem_init(void)
 {
+	int error = 0;
+
 	NMA_LOCK_INIT(&nm_mem);
 	netmap_mem_get(&nm_mem);
-	return (0);
+#ifdef WITH_NMCONF
+	error = netmap_interp_list_init(&netmap_interp_mem, 10);
+	if (error)
+		goto fail_put;
+	error = netmap_interp_list_add(&netmap_interp_root, "mem",
+			&netmap_interp_mem.up);
+	if (error)
+		goto fail_uninit;
+#endif /* WITH_NMCONF */
+	return (error);
+
+#ifdef WITH_NMCONF
+fail_uninit:
+	netmap_interp_list_uninit(&netmap_interp_mem);
+fail_put:
+	netmap_mem_put(&nm_mem);
+	return (error);
+#endif /* WITH_NMCONF */
 }
 
 void
 netmap_mem_fini(void)
 {
+#ifdef WITH_NMCONF
+	netmap_interp_list_del(&netmap_interp_root, "mem");
+	netmap_interp_list_uninit(&netmap_interp_mem);
+#endif /* WITH_NMCONF */
 	netmap_mem_put(&nm_mem);
 }
 
