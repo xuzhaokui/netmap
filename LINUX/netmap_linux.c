@@ -1603,26 +1603,36 @@ static struct pernet_operations netmap_pernet_ops = {
 #endif
 };
 
+static int netmap_bns_registered;
+
 int
 netmap_bns_register(void)
 {
+	int error;
 #ifdef NETMAP_LINUX_HAVE_PERNET_OPS_ID
-	return -register_pernet_subsys(&netmap_pernet_ops);
+	error = register_pernet_subsys(&netmap_pernet_ops);
 #else
-	return -register_pernet_gen_subsys(&netmap_bns_id,
+	error = register_pernet_gen_subsys(&netmap_bns_id,
 			&netmap_pernet_ops);
 #endif
+	if (error)
+		return -error;
+	netmap_bns_registered = 1;
+	return 0;
 }
 
 void
 netmap_bns_unregister(void)
 {
+	if (netmap_bns_registered) {
 #ifdef NETMAP_LINUX_HAVE_PERNET_OPS_ID
-	unregister_pernet_subsys(&netmap_pernet_ops);
+		unregister_pernet_subsys(&netmap_pernet_ops);
 #else
-	unregister_pernet_gen_subsys(netmap_bns_id,
-			&netmap_pernet_ops);
+		unregister_pernet_gen_subsys(netmap_bns_id,
+				&netmap_pernet_ops);
 #endif
+		netmap_bns_registered = 0;
+	}
 }
 #endif /* CONFIG_NET_NS */
 #endif /* WITH_VALE */

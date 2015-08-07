@@ -2377,12 +2377,12 @@ netmap_init_bridges(void)
 #ifdef CONFIG_NET_NS
 	error = netmap_bns_register();
 	if (error)
-		return error;
+		goto fail;
 #else
 	nm_bridges = netmap_init_bridges2(NM_BRIDGES);
 	if (nm_bridges == NULL) {
 		error = ENOMEM;
-		return error;
+		goto fail;
 	}
 #endif /* CONFIG_NET_NS */
 #ifdef WITH_NMCONF

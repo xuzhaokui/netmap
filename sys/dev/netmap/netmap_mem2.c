@@ -196,6 +196,10 @@ struct netmap_mem_d {
 	struct netmap_mem_d *prev, *next;
 
 	struct netmap_mem_ops *ops;
+
+#ifdef WITH_NMCONF
+	netmap_interp_list ip;
+#endif /* WITH_NMCONF */
 };
 
 /*
