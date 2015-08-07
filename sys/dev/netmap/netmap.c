@@ -819,6 +819,10 @@ netmap_krings_create(struct netmap_adapter *na, u_int tailroom)
 				kring->name, kring->rhead, kring->rcur, kring->rtail);
 			mtx_init(&kring->q_lock, (t == NR_TX ? "nm_txq_lock" : "nm_rxq_lock"), NULL, MTX_DEF);
 			init_waitqueue_head(&kring->si);
+#ifdef WITH_NMCONF
+			netmap_interp_list_init(&kring->ip, 10);
+			netmap_interp_list_add(&na->ring_ip, kring->name, &kring->ip.up);			
+#endif
 		}
 		init_waitqueue_head(&na->si[t]);
 	}
@@ -855,6 +859,10 @@ netmap_krings_delete(struct netmap_adapter *na)
 
 	/* we rely on the krings layout described above */
 	for ( ; kring != na->tailroom; kring++) {
+#ifdef WITH_NMCONF
+		netmap_interp_list_del(&na->ring_ip, kring->name);
+		netmap_interp_list_uninit(&kring->ip);
+#endif
 		mtx_destroy(&kring->q_lock);
 		netmap_knlist_destroy(&kring->si);
 	}
@@ -2622,6 +2630,42 @@ enum txrx tx, int flags)
 }
 #endif
 
+static void
+netmap_interp_port_uninit(struct netmap_adapter *na)
+{
+	netmap_interp_list_del(&na->ring_ip, "rings");
+	netmap_interp_list_uninit(&na->ring_ip);
+	netmap_interp_list_del(&netmap_interp_ports, na->name);
+	netmap_interp_list_uninit(&na->ip);
+}
+
+#ifdef WITH_NMCONF
+static int
+netmap_interp_port_init(struct netmap_adapter *na)
+{
+	int error = 0;
+
+	error = netmap_interp_list_init(&na->ip, 10);
+	if (error)
+		goto fail;
+	error = netmap_interp_list_add(&netmap_interp_ports, na->name, &na->ip.up);
+	if (error)
+		goto fail;
+	error = netmap_interp_list_init(&na->ring_ip, 10);
+	if (error)
+		goto fail;
+	error = netmap_interp_list_add(&na->ip, "rings", &na->ring_ip.up);
+	if (error)
+		goto fail;
+	return 0;
+
+fail:
+	netmap_interp_port_uninit(na);
+	return error;
+}
+
+#endif
+
 /* called by all routines that create netmap_adapters.
  * provide some defaults and get a reference to the
  * memory allocator
@@ -2665,22 +2709,12 @@ netmap_attach_common(struct netmap_adapter *na)
 		 */
 		na->nm_bdg_attach = netmap_bwrap_attach;
 #endif
-
 #ifdef WITH_NMCONF
-	error = netmap_interp_list_init(&na->ip, 10);
-	if (error)
-		goto fail;
-	error = netmap_interp_list_add(&netmap_interp_ports, na->name, &na->ip.up);
-	if (error)
-		goto fail_uninit;
-
-	return 0;
-
-fail_uninit:
-	netmap_interp_list_uninit(&na->ip);
-fail:
+	error = netmap_interp_port_init(na);
+	// XXX check error path
 #endif
 	return error;
+
 }
 
 
@@ -2689,8 +2723,7 @@ void
 netmap_detach_common(struct netmap_adapter *na)
 {
 #ifdef WITH_NMCONF
-	netmap_interp_list_del(&netmap_interp_ports, na->name);
-	netmap_interp_list_uninit(&na->ip);
+	netmap_interp_port_uninit(na);
 #endif
 	if (na->tx_rings) { /* XXX should not happen */
 		D("freeing leftover tx_rings");

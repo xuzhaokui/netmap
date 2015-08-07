@@ -541,6 +541,10 @@ struct netmap_kring {
 	uint32_t mon_tail;  /* last seen slot on rx */
 	uint32_t mon_pos;   /* index of this ring in the monitored ring array */
 #endif
+
+#ifdef WITH_NMCONF
+	struct netmap_interp_list ip;
+#endif
 }
 #ifdef _WIN32
 __declspec(align(64));
@@ -811,6 +815,7 @@ struct netmap_adapter {
 
 #ifdef WITH_NMCONF
 	struct netmap_interp_list ip;
+	struct netmap_interp_list ring_ip;
 #endif
 };
 
