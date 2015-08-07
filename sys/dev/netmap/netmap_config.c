@@ -626,6 +626,7 @@ netmap_interp_list_init(struct netmap_interp_list *il, u_int nelem)
 	if (il->list == NULL)
 		return ENOMEM;
 	il->nelem = nelem;
+	il->nextfree = 0;
 	return 0;
 }
 
