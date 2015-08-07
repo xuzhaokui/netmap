@@ -119,6 +119,10 @@ struct netmap_obj_pool {
 	/* requested values */
 	u_int r_objtotal;
 	u_int r_objsize;
+
+#ifdef WITH_NMCONF
+	struct netmap_interp_list ip;
+#endif
 };
 
 #define NMA_LOCK_T		NM_MTX_T
@@ -198,7 +202,9 @@ struct netmap_mem_d {
 	struct netmap_mem_ops *ops;
 
 #ifdef WITH_NMCONF
-	netmap_interp_list ip;
+#define	NM_MEM_NAMESZ	16
+	char name[NM_MEM_NAMESZ];
+	struct netmap_interp_list ip;
 #endif /* WITH_NMCONF */
 };
 
@@ -261,6 +267,62 @@ static int nm_mem_assign_group(struct netmap_mem_d *, struct device *);
 #define NMA_LOCK_DESTROY(n)	NM_MTX_DESTROY((n)->nm_mtx)
 #define NMA_LOCK(n)		NM_MTX_LOCK((n)->nm_mtx)
 #define NMA_UNLOCK(n)		NM_MTX_UNLOCK((n)->nm_mtx)
+
+#ifdef WITH_NMCONF
+struct netmap_interp_list netmap_interp_mem;
+
+static const char *
+netmap_mempool_idx2name(int idx)
+{
+	static const char *names[] = { "if", "ring", "buf" };
+	return names[idx];
+}
+
+static void
+netmap_mem_interp_uninit(struct netmap_mem_d *nmd)
+{
+	int i;
+
+	for (i = 0; i < NETMAP_POOLS_NR; i++) {
+		netmap_interp_list_del(&nmd->ip, netmap_mempool_idx2name(i));
+		netmap_interp_list_uninit(&nmd->pools[i].ip);
+	}
+	netmap_interp_list_del(&netmap_interp_mem, nmd->name);
+	netmap_interp_list_uninit(&nmd->ip);
+}
+
+static int
+netmap_mem_interp_init(struct netmap_mem_d *nmd)
+{
+	int error, i;
+
+	snprintf(nmd->name, NM_MEM_NAMESZ, "%d", nmd->nm_id);
+	error = netmap_interp_list_init(&nmd->ip, 3);
+	if (error)
+		goto fail;
+	error = netmap_interp_list_add(&netmap_interp_mem, nmd->name, &nmd->ip.up);
+	if (error)
+		goto fail;
+	for (i = 0; i < NETMAP_POOLS_NR; i++) {
+		error = netmap_interp_list_init(&nmd->pools[i].ip, 10);
+		if (error)
+			goto fail_del;
+		error = netmap_interp_list_add(&nmd->ip,
+				netmap_mempool_idx2name(i),
+				&nmd->pools[i].ip.up);
+		if (error)
+			goto fail_del;
+	}
+
+	return 0;
+
+fail_del:
+	netmap_mem_interp_uninit(nmd);
+fail:
+	return error;
+}
+#endif /* WITH_NMCONF */
+
 
 #ifdef NM_DEBUG_MEM_PUTGET
 #define NM_DBG_REFC(nmd, func, line)	\
@@ -1408,6 +1470,9 @@ netmap_mem_private_delete(struct netmap_mem_d *nmd)
 		D("deleting %p", nmd);
 	if (nmd->active > 0)
 		D("bug: deleting mem allocator with active=%d!", nmd->active);
+#ifdef WITH_NMCONF
+	netmap_mem_interp_uninit(nmd);
+#endif
 	nm_mem_release_id(nmd);
 	if (netmap_verbose)
 		D("done deleting %p", nmd);
@@ -1530,6 +1595,12 @@ netmap_mem_private_new(const char *name, u_int txr, u_int txd,
 
 	NMA_LOCK_INIT(d);
 
+#ifdef WITH_NMCONF
+	err = netmap_mem_interp_init(d);
+	if (err)
+		goto error;
+#endif
+
 	return d;
 error:
 	netmap_mem_private_delete(d);
@@ -1610,16 +1681,15 @@ netmap_mem_global_delete(struct netmap_mem_d *nmd)
 {
 	int i;
 
+#ifdef WITH_NMCONF
+	netmap_mem_interp_uninit(nmd);
+#endif
 	for (i = 0; i < NETMAP_POOLS_NR; i++) {
 	    netmap_destroy_obj_allocator(&nm_mem.pools[i]);
 	}
 
 	NMA_LOCK_DESTROY(&nm_mem);
 }
-
-#ifdef WITH_NMCONF
-struct netmap_interp_list netmap_interp_mem;
-#endif /* WITH_NMCONF */
 
 int
 netmap_mem_init(void)
@@ -1636,10 +1706,15 @@ netmap_mem_init(void)
 			&netmap_interp_mem.up);
 	if (error)
 		goto fail_uninit;
+	error = netmap_mem_interp_init(&nm_mem);
+	if (error)
+		goto fail_uninit2;
 #endif /* WITH_NMCONF */
 	return (error);
 
 #ifdef WITH_NMCONF
+fail_uninit2:
+	netmap_mem_interp_uninit(&nm_mem);
 fail_uninit:
 	netmap_interp_list_uninit(&netmap_interp_mem);
 fail_put:

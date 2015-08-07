@@ -2629,6 +2629,8 @@ enum txrx tx, int flags)
 int
 netmap_attach_common(struct netmap_adapter *na)
 {
+	int error = 0;
+
 	if (na->num_tx_rings == 0 || na->num_rx_rings == 0) {
 		D("%s: invalid rings tx %d rx %d",
 			na->name, na->num_tx_rings, na->num_rx_rings);
@@ -2663,7 +2665,22 @@ netmap_attach_common(struct netmap_adapter *na)
 		 */
 		na->nm_bdg_attach = netmap_bwrap_attach;
 #endif
+
+#ifdef WITH_NMCONF
+	error = netmap_interp_list_init(&na->ip, 10);
+	if (error)
+		goto fail;
+	error = netmap_interp_list_add(&netmap_interp_ports, na->name, &na->ip.up);
+	if (error)
+		goto fail_uninit;
+
 	return 0;
+
+fail_uninit:
+	netmap_interp_list_uninit(&na->ip);
+fail:
+#endif
+	return error;
 }
 
 
@@ -2671,6 +2688,10 @@ netmap_attach_common(struct netmap_adapter *na)
 void
 netmap_detach_common(struct netmap_adapter *na)
 {
+#ifdef WITH_NMCONF
+	netmap_interp_list_del(&netmap_interp_ports, na->name);
+	netmap_interp_list_uninit(&na->ip);
+#endif
 	if (na->tx_rings) { /* XXX should not happen */
 		D("freeing leftover tx_rings");
 		na->nm_krings_delete(na);

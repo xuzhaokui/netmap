@@ -230,6 +230,10 @@ struct nm_bridge {
 #ifdef CONFIG_NET_NS
 	struct net *ns;
 #endif /* CONFIG_NET_NS */
+
+#ifdef WITH_NMCONF
+	struct netmap_interp_list ip;
+#endif
 };
 
 const char*
@@ -241,6 +245,9 @@ netmap_bdg_name(struct netmap_vp_adapter *vp)
 	return b->bdg_basename;
 }
 
+#ifdef WITH_NMCONF
+struct netmap_interp_list netmap_interp_bridge;
+#endif /* WITH_NMCONF */
 
 #ifndef CONFIG_NET_NS
 /*
@@ -336,6 +343,14 @@ nm_find_bridge(const char *name, int create)
 		strncpy(b->bdg_basename, name, namelen);
 		ND("create new bridge %s with ports %d", b->bdg_basename,
 			b->bdg_active_ports);
+#ifdef WITH_NMCONF
+		if (netmap_interp_list_init(&b->ip, 10))
+			return NULL;
+		if (netmap_interp_list_add(&netmap_interp_bridge, b->bdg_basename, &b->ip.up)) {
+			netmap_interp_list_uninit(&b->ip);
+			return NULL;
+		}
+#endif
 		b->bdg_namelen = namelen;
 		b->bdg_active_ports = 0;
 		for (i = 0; i < NM_BDG_MAXPORTS; i++)
@@ -471,6 +486,10 @@ netmap_bdg_detach_common(struct nm_bridge *b, int hw, int sw)
 	ND("now %d active ports", lim);
 	if (lim == 0) {
 		ND("marking bridge %s as free", b->bdg_basename);
+#ifdef WITH_NMCONF
+		netmap_interp_list_del(&netmap_interp_bridge, b->bdg_basename);
+		netmap_interp_list_uninit(&b->ip);
+#endif
 		bzero(&b->bdg_ops, sizeof(b->bdg_ops));
 		NM_BNS_PUT(b);
 	}
@@ -2364,10 +2383,6 @@ netmap_uninit_bridges2(struct nm_bridge *b, u_int n)
 		BDG_RWDESTROY(&b[i]);
 	free(b, M_DEVBUF);
 }
-
-#ifdef WITH_NMCONF
-struct netmap_interp_list netmap_interp_bridge;
-#endif /* WITH_NMCONF */
 
 void netmap_uninit_bridges(void);
 int

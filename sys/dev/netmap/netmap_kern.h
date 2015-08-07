@@ -256,6 +256,69 @@ typedef struct hrtimer{
 			D(format, ##__VA_ARGS__);		\
 	} while (0)
 
+#ifdef WITH_NMCONF
+
+struct nm_confbuf_data;
+struct netmap_confbuf {
+	struct nm_confbuf_data *readp;
+	struct nm_confbuf_data *writep;
+	u_int n_data;
+	u_int next_w;
+	u_int next_r;
+};
+
+struct netmap_config {
+	NM_MTX_T mux;
+	struct netmap_confbuf buf[2]; /* 0 in, 1 out */
+	int written;
+};
+void netmap_config_init(struct netmap_config*);
+void netmap_config_uninit(struct netmap_config*, int locked);
+struct uio;
+int netmap_config_read(struct netmap_config *, struct uio *);
+int netmap_config_write(struct netmap_config *, struct uio *);
+int netmap_config_parse(struct netmap_config*, int locked);
+
+#include "jsonlr.h"
+
+struct netmap_interp {
+	struct _jpo (*interp)(struct netmap_interp *, struct _jpo, char *pool);
+	struct _jpo (*dump)(struct netmap_interp *, char *pool);
+};
+
+struct netmap_interp_list_elem {
+#define	NETMAP_CONFIG_MAXNAME	64
+	char name[NETMAP_CONFIG_MAXNAME];
+	struct netmap_interp *ip;
+};
+
+struct netmap_interp_list {
+	struct netmap_interp up;
+	struct netmap_interp_list_elem *list;
+	u_int minelem;
+	u_int nelem;
+	u_int nextfree;
+};
+
+int netmap_interp_list_init(struct netmap_interp_list *, u_int nelem);
+void netmap_interp_list_uninit(struct netmap_interp_list *);
+int netmap_interp_list_add(struct netmap_interp_list *, const char *,
+		struct netmap_interp *);
+int netmap_interp_list_del(struct netmap_interp_list *, const char *);
+struct netmap_interp *netmap_interp_list_search(struct netmap_interp_list *,
+		const char *);
+
+extern struct netmap_interp_list netmap_interp_root;
+extern struct netmap_interp_list netmap_interp_ports;
+
+#else /* ! WITH_NMCONF */
+
+struct netmap_config {};
+#define netmap_config_init(_a)		((void)(_a))
+#define netmap_config_uninit(_a, _l)	((void)(_a))
+
+#endif /* WITH_NMCONF */
+
 struct netmap_adapter;
 struct nm_bdg_fwd;
 struct nm_bridge;
@@ -745,6 +808,10 @@ struct netmap_adapter {
 	int na_max_pipes;	/* size of the array */
 
 	char name[64];
+
+#ifdef WITH_NMCONF
+	struct netmap_interp_list ip;
+#endif
 };
 
 static __inline u_int
@@ -1661,68 +1728,6 @@ PNMB(struct netmap_adapter *na, struct netmap_slot *slot, uint64_t *pp)
 	return ret;
 }
 
-#ifdef WITH_NMCONF
-
-struct nm_confbuf_data;
-struct netmap_confbuf {
-	struct nm_confbuf_data *readp;
-	struct nm_confbuf_data *writep;
-	u_int n_data;
-	u_int next_w;
-	u_int next_r;
-};
-
-struct netmap_config {
-	NM_MTX_T mux;
-	struct netmap_confbuf buf[2]; /* 0 in, 1 out */
-	int written;
-};
-void netmap_config_init(struct netmap_config*);
-void netmap_config_uninit(struct netmap_config*, int locked);
-struct uio;
-int netmap_config_read(struct netmap_config *, struct uio *);
-int netmap_config_write(struct netmap_config *, struct uio *);
-int netmap_config_parse(struct netmap_config*, int locked);
-
-#include "jsonlr.h"
-
-struct netmap_interp {
-	struct _jpo (*interp)(struct netmap_interp *, struct _jpo, char *pool);
-	struct _jpo (*dump)(struct netmap_interp *, char *pool);
-};
-
-struct netmap_interp_list_elem {
-#define	NETMAP_CONFIG_MAXNAME	64
-	char name[NETMAP_CONFIG_MAXNAME];
-	struct netmap_interp *ip;
-};
-
-struct netmap_interp_list {
-	struct netmap_interp up;
-	struct netmap_interp_list_elem *list;
-	u_int minelem;
-	u_int nelem;
-	u_int nextfree;
-};
-
-int netmap_interp_list_init(struct netmap_interp_list *, u_int nelem);
-void netmap_interp_list_uninit(struct netmap_interp_list *);
-int netmap_interp_list_add(struct netmap_interp_list *, const char *,
-		struct netmap_interp *);
-int netmap_interp_list_del(struct netmap_interp_list *, const char *);
-struct netmap_interp *netmap_interp_list_search(struct netmap_interp_list *,
-		const char *);
-
-extern struct netmap_interp_list netmap_interp_root;
-extern struct netmap_interp_list netmap_interp_ports;
-
-#else /* ! WITH_NMCONF */
-
-struct netmap_config {};
-#define netmap_config_init(_a)		((void)(_a))
-#define netmap_config_uninit(_a, _l)	((void)(_a))
-
-#endif /* WITH_NMCONF */
 
 
 /*
