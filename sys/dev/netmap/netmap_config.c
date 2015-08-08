@@ -722,6 +722,8 @@ static int64_t
 netmap_interp_num_getvar(struct netmap_interp_num *in)
 {
 	switch (in->size) {
+	case 0:
+		return ((netmap_interp_num_reader)in->var)(in);
 	case 1:
 		return *(int8_t*)in->var;
 	case 2:
@@ -733,24 +735,6 @@ netmap_interp_num_getvar(struct netmap_interp_num *in)
 	default:
 		D("unsupported size %zd", in->size);
 		return 0;
-	}
-}
-
-static void
-netmap_interp_num_setvar(struct netmap_interp_num *in, int64_t nv)
-{
-	switch (in->size) {
-	case 1:
-		*(int8_t*)in->var = (int8_t)nv;
-		break;
-	case 2:
-		*(int16_t*)in->var = (int16_t)nv;
-	case 4:
-		*(int32_t*)in->var = (int32_t)nv;
-	case 8:
-		*(int64_t*)in->var = (int64_t)nv;
-	default:
-		D("unsupported size %zd", in->size);
 	}
 }
 
@@ -780,12 +764,9 @@ netmap_interp_num_interp(struct netmap_interp *ip, struct _jpo r, char *pool)
 		goto done;
 	}
 	error = in->update(in, nv);
-	if (error) {
+	if (error)
 		r = netmap_interp_error(pool, "invalid; %ld", nv);
-		goto done;
-	}
-	netmap_interp_num_setvar(in, nv);
-
+	r = ip->dump(ip, pool);
 done:
 	return r;
 }

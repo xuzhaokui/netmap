@@ -315,6 +315,7 @@ struct netmap_interp_num {
 	int (*update)(struct netmap_interp_num *, int64_t);
 };
 
+typedef int64_t (*netmap_interp_num_reader)(struct netmap_interp_num *);
 int netmap_interp_num_init(struct netmap_interp_num *, void *var, size_t size,
 		int (*update)(struct netmap_interp_num *, int64_t));
 int netmap_interp_num_uninit(struct netmap_interp_num *);
