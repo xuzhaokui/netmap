@@ -1753,7 +1753,7 @@ netmap_mem_global_finalize(struct netmap_mem_d *nmd)
 		
 	/* update configuration if changed */
 	if (netmap_mem_global_config(nmd))
-		goto out;
+		goto out1;
 
 	nmd->active++;
 
@@ -1771,6 +1771,7 @@ netmap_mem_global_finalize(struct netmap_mem_d *nmd)
 out:
 	if (nmd->lasterr)
 		nmd->active--;
+out1:
 	err = nmd->lasterr;
 
 	return err;
