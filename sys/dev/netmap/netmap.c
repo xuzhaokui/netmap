@@ -2633,10 +2633,13 @@ enum txrx tx, int flags)
 static void
 netmap_interp_port_uninit(struct netmap_adapter *na)
 {
-	netmap_interp_list_del(&na->ip, &na->ring_ip.up);
+	struct netmap_interp_list *il = &na->ip;
+
+	NETMAP_INTERP_LIST_DEL_NUM(il, &na->ip_users);
+	netmap_interp_list_del(il, &na->ring_ip.up);
 	netmap_interp_list_uninit(&na->ring_ip);
-	netmap_interp_list_del(&netmap_interp_ports, &na->ip.up);
-	netmap_interp_list_uninit(&na->ip);
+	netmap_interp_list_del(&netmap_interp_ports, &il->up);
+	netmap_interp_list_uninit(il);
 }
 
 #ifdef WITH_NMCONF
@@ -2644,17 +2647,21 @@ static int
 netmap_interp_port_init(struct netmap_adapter *na)
 {
 	int error = 0;
+	struct netmap_interp_list *il = &na->ip;
 
-	error = netmap_interp_list_init(&na->ip, 10);
+	error = netmap_interp_list_init(il, 10);
 	if (error)
 		goto fail;
-	error = netmap_interp_list_add(&netmap_interp_ports, &na->ip.up, na->name);
+	error = netmap_interp_list_add(&netmap_interp_ports, &il->up, na->name);
+	if (error)
+		goto fail;
+	error = NETMAP_INTERP_LIST_ADD_RONUM(il, &na->ip_users, na->active_fds, "users");
 	if (error)
 		goto fail;
 	error = netmap_interp_list_init(&na->ring_ip, 10);
 	if (error)
 		goto fail;
-	error = netmap_interp_list_add(&na->ip, &na->ring_ip.up, "rings");
+	error = netmap_interp_list_add(il, &na->ring_ip.up, "rings");
 	if (error)
 		goto fail;
 	return 0;

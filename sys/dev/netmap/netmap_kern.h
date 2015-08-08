@@ -335,7 +335,7 @@ int netmap_interp_num_uninit(struct netmap_interp_num *);
 #define NETMAP_INTERP_LIST_DEL_NUM(il, in) do {						\
 	 	netmap_interp_list_del(il, &(in)->up);					\
 	 	netmap_interp_num_uninit(in);						\
-	} while (0)
+	 } while (0)
 
 
 extern struct netmap_interp_list netmap_interp_root;
@@ -846,6 +846,7 @@ struct netmap_adapter {
 #ifdef WITH_NMCONF
 	struct netmap_interp_list ip;
 	struct netmap_interp_list ring_ip;
+	struct netmap_interp_num ip_users;
 #endif
 };
 
