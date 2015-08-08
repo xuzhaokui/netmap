@@ -84,6 +84,9 @@ enum {
 struct netmap_obj_params {
 	u_int size;
 	u_int num;
+
+	u_int last_size;
+	u_int last_num;
 };
 
 struct netmap_obj_pool {
@@ -128,6 +131,9 @@ struct netmap_obj_pool {
 	struct netmap_interp_num ip_size;
 	struct netmap_interp_num ip_numclusters;
 	struct netmap_interp_num ip_clustsize;
+	/* r/w */
+	struct netmap_interp_num ip_req_total;
+	struct netmap_interp_num ip_req_size;
 #endif
 };
 
@@ -206,6 +212,8 @@ struct netmap_mem_d {
 	struct netmap_mem_d *prev, *next;
 
 	struct netmap_mem_ops *ops;
+
+	struct netmap_obj_params *params;
 
 #ifdef WITH_NMCONF
 #define	NM_MEM_NAMESZ	16
@@ -290,6 +298,8 @@ netmap_mem_interp_uninit(struct netmap_mem_d *nmd)
 		struct netmap_obj_pool *p = nmd->pools + i;
 		struct netmap_interp_list *pil = &p->ip;
 
+		NETMAP_INTERP_LIST_DEL_NUM(pil, &p->ip_req_size);
+		NETMAP_INTERP_LIST_DEL_NUM(pil, &p->ip_req_total);
 		NETMAP_INTERP_LIST_DEL_NUM(pil, &p->ip_clustsize);
 		NETMAP_INTERP_LIST_DEL_NUM(pil, &p->ip_numclusters);
 		NETMAP_INTERP_LIST_DEL_NUM(pil, &p->ip_size);
@@ -363,6 +373,12 @@ netmap_mem_interp_init(struct netmap_mem_d *nmd)
 				p->_clustsize, "cluster-size");
 		if (error)
 			goto fail_del;
+		error = NETMAP_INTERP_LIST_ADD_RWNUM(pil, &p->ip_req_total,
+				nmd->params[i].num, "req-total");
+		if (error)
+			goto fail_del;
+		error = NETMAP_INTERP_LIST_ADD_RWNUM(pil, &p->ip_req_size,
+				nmd->params[i].size, "req-size");
 		if (error)
 			goto fail_del;
 		error = netmap_interp_list_add(&nmd->ip, &pil->up, names[i]);
@@ -1399,16 +1415,18 @@ clean:
 
 /* call with lock held */
 static int
-netmap_memory_config_changed(struct netmap_mem_d *nmd)
+netmap_mem_params_changed(struct netmap_obj_params* p)
 {
-	int i;
+	int i, rv = 0;
 
 	for (i = 0; i < NETMAP_POOLS_NR; i++) {
-		if (nmd->pools[i].r_objsize != netmap_params[i].size ||
-		    nmd->pools[i].r_objtotal != netmap_params[i].num)
-		    return 1;
+		if (p[i].last_size != p[i].size || p[i].last_num != p[i].num) {
+			p[i].last_size = p[i].size;
+			p[i].last_num = p[i].num;
+			rv = 1;
+		}
 	}
-	return 0;
+	return rv;
 }
 
 static void
@@ -1599,8 +1617,13 @@ netmap_mem_private_new(const char *name, u_int txr, u_int txd,
 	struct netmap_obj_params p[NETMAP_POOLS_NR];
 	int i, err;
 	u_int v, maxd;
+#ifdef WITH_NMCONF
+	size_t extra = sizeof(struct netmap_obj_params) * NETMAP_POOLS_NR;
+#else
+	size_t extra = 0;
+#endif
 
-	d = malloc(sizeof(struct netmap_mem_d),
+	d = malloc(sizeof(struct netmap_mem_d) + extra,
 			M_DEVBUF, M_NOWAIT | M_ZERO);
 	if (d == NULL) {
 		err = ENOMEM;
@@ -1673,6 +1696,7 @@ netmap_mem_private_new(const char *name, u_int txr, u_int txd,
 	NMA_LOCK_INIT(d);
 
 #ifdef WITH_NMCONF
+	d->params = (struct netmap_obj_params *)(d + 1);
 	err = netmap_mem_interp_init(d);
 	if (err)
 		goto error;
@@ -1697,7 +1721,7 @@ netmap_mem_global_config(struct netmap_mem_d *nmd)
 		/* already in use, we cannot change the configuration */
 		goto out;
 
-	if (!netmap_memory_config_changed(nmd))
+	if (!netmap_mem_params_changed(nmd->params))
 		goto out;
 
 	ND("reconfiguring");
@@ -1712,7 +1736,7 @@ netmap_mem_global_config(struct netmap_mem_d *nmd)
 
 	for (i = 0; i < NETMAP_POOLS_NR; i++) {
 		nmd->lasterr = netmap_config_obj_allocator(&nmd->pools[i],
-				netmap_params[i].num, netmap_params[i].size);
+				nmd->params[i].num, nmd->params[i].size);
 		if (nmd->lasterr)
 			goto out;
 	}
@@ -1774,6 +1798,7 @@ netmap_mem_init(void)
 	int error = 0;
 
 	NMA_LOCK_INIT(&nm_mem);
+	nm_mem.params = netmap_params;
 	netmap_mem_get(&nm_mem);
 #ifdef WITH_NMCONF
 	error = netmap_interp_list_init(&netmap_interp_mem, 10);
