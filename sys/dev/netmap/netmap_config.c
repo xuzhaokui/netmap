@@ -658,30 +658,23 @@ netmap_interp_list_add(struct netmap_interp_list *il, const char *name,
 	return 0;
 }
 
-static int
-_netmap_interp_list_search(struct netmap_interp_list *il, const char *name)
-{
-	int i;
-	for (i = 0; i < il->nelem; i++) {
-		struct netmap_interp_list_elem *e = &il->list[i];
-		if (strncmp(name, e->name, NETMAP_CONFIG_MAXNAME) == 0)
-			break;
-	}
-	return i;
-}
-
 int
-netmap_interp_list_del(struct netmap_interp_list *il, const char *name)
+netmap_interp_list_del(struct netmap_interp_list *il, struct netmap_interp *ip)
 {
-	int i = _netmap_interp_list_search(il, name);
 	struct netmap_interp_list_elem *e1, *e2;
-	if (i == il->nelem)
-		return ENOENT;
-	e1 = &il->list[i];
-	e2 = &il->list[il->nextfree];
-	strncpy(e1->name, e2->name, NETMAP_CONFIG_MAXNAME);
-	e1->ip = e2->ip;
+
+	for (e1 = il->list; e1 != il->list + il->nextfree; e1++)
+		if (e1->ip == ip)
+			goto found;
+	return ENOENT;
+found:
 	il->nextfree--;
+	e2 = &il->list[il->nextfree];
+	if (e1 != e2) {
+		strncpy(e1->name, e2->name, NETMAP_CONFIG_MAXNAME);
+		e1->ip = e2->ip;
+	}
+	memset(e2, 0, sizeof(*e2));
 	if (il->nelem > il->minelem && il->nextfree < il->nelem / 2) {
 		struct netmap_interp_list_elem *newlist;
 		u_int newnelem = il->nelem / 2;
@@ -701,8 +694,13 @@ netmap_interp_list_del(struct netmap_interp_list *il, const char *name)
 struct netmap_interp *
 netmap_interp_list_search(struct netmap_interp_list *il, const char *name)
 {
-	int i = _netmap_interp_list_search(il, name);
-	if (i == il->nelem)
+	int i;
+	for (i = 0; i < il->nextfree; i++) {
+		struct netmap_interp_list_elem *e = &il->list[i];
+		if (strncmp(name, e->name, NETMAP_CONFIG_MAXNAME) == 0)
+			break;
+	}
+	if (i == il->nextfree)
 		return NULL;
 	return il->list[i].ip;
 }

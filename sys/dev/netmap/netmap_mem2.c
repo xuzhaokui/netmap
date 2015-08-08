@@ -284,10 +284,10 @@ netmap_mem_interp_uninit(struct netmap_mem_d *nmd)
 	int i;
 
 	for (i = 0; i < NETMAP_POOLS_NR; i++) {
-		netmap_interp_list_del(&nmd->ip, netmap_mempool_idx2name(i));
+		netmap_interp_list_del(&nmd->ip, &nmd->pools[i].ip.up);
 		netmap_interp_list_uninit(&nmd->pools[i].ip);
 	}
-	netmap_interp_list_del(&netmap_interp_mem, nmd->name);
+	netmap_interp_list_del(&netmap_interp_mem, &nmd->ip.up);
 	netmap_interp_list_uninit(&nmd->ip);
 }
 
@@ -1727,7 +1727,7 @@ void
 netmap_mem_fini(void)
 {
 #ifdef WITH_NMCONF
-	netmap_interp_list_del(&netmap_interp_root, "mem");
+	netmap_interp_list_del(&netmap_interp_root, &netmap_interp_mem.up);
 	netmap_interp_list_uninit(&netmap_interp_mem);
 #endif /* WITH_NMCONF */
 	netmap_mem_put(&nm_mem);

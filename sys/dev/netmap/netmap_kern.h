@@ -304,7 +304,7 @@ int netmap_interp_list_init(struct netmap_interp_list *, u_int nelem);
 void netmap_interp_list_uninit(struct netmap_interp_list *);
 int netmap_interp_list_add(struct netmap_interp_list *, const char *,
 		struct netmap_interp *);
-int netmap_interp_list_del(struct netmap_interp_list *, const char *);
+int netmap_interp_list_del(struct netmap_interp_list *, struct netmap_interp *);
 struct netmap_interp *netmap_interp_list_search(struct netmap_interp_list *,
 		const char *);
 

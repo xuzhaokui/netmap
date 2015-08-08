@@ -487,7 +487,7 @@ netmap_bdg_detach_common(struct nm_bridge *b, int hw, int sw)
 	if (lim == 0) {
 		ND("marking bridge %s as free", b->bdg_basename);
 #ifdef WITH_NMCONF
-		netmap_interp_list_del(&netmap_interp_bridge, b->bdg_basename);
+		netmap_interp_list_del(&netmap_interp_bridge, &b->ip.up);
 		netmap_interp_list_uninit(&b->ip);
 #endif
 		bzero(&b->bdg_ops, sizeof(b->bdg_ops));
@@ -2420,7 +2420,7 @@ void
 netmap_uninit_bridges(void)
 {
 #ifdef WITH_NMCONF
-	netmap_interp_list_del(&netmap_interp_root, "bridge");
+	netmap_interp_list_del(&netmap_interp_root, &netmap_interp_bridge.up);
 	netmap_interp_list_uninit(&netmap_interp_bridge);
 #endif /* WITH_NMCONF */
 #ifdef CONFIG_NET_NS

@@ -860,7 +860,7 @@ netmap_krings_delete(struct netmap_adapter *na)
 	/* we rely on the krings layout described above */
 	for ( ; kring != na->tailroom; kring++) {
 #ifdef WITH_NMCONF
-		netmap_interp_list_del(&na->ring_ip, kring->name);
+		netmap_interp_list_del(&na->ring_ip, &kring->ip.up);
 		netmap_interp_list_uninit(&kring->ip);
 #endif
 		mtx_destroy(&kring->q_lock);
@@ -2633,9 +2633,9 @@ enum txrx tx, int flags)
 static void
 netmap_interp_port_uninit(struct netmap_adapter *na)
 {
-	netmap_interp_list_del(&na->ring_ip, "rings");
+	netmap_interp_list_del(&na->ip, &na->ring_ip.up);
 	netmap_interp_list_uninit(&na->ring_ip);
-	netmap_interp_list_del(&netmap_interp_ports, na->name);
+	netmap_interp_list_del(&netmap_interp_ports, &na->ip.up);
 	netmap_interp_list_uninit(&na->ip);
 }
 
@@ -3228,8 +3228,8 @@ netmap_fini(void)
 	netmap_mem_fini();
 	NMG_LOCK_DESTROY();
 #ifdef WITH_NMCONF
+	netmap_interp_list_del(&netmap_interp_root, &netmap_interp_ports.up);
 	netmap_interp_list_uninit(&netmap_interp_ports);
-	netmap_interp_list_del(&netmap_interp_root, "port");
 	netmap_interp_list_uninit(&netmap_interp_root);
 #endif /* WITH_NMCONF */
 	printf("netmap: unloaded module.\n");
