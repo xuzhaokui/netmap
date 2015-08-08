@@ -547,6 +547,30 @@ netmap_interp_is_dump(struct _jpo r, char *pool)
 }
 
 static struct _jpo
+netmap_interp_interp(struct netmap_interp *ip, struct _jpo r, char *pool)
+{
+	if (ip->lock)
+		ip->lock(ip, 1);
+	r = ip->interp(ip, r, pool);
+	if (ip->lock)
+		ip->lock(ip, 0);
+	return r;
+}
+
+static struct _jpo
+netmap_interp_dump(struct netmap_interp *ip, char *pool)
+{
+	struct _jpo r;
+
+	if (ip->lock)
+		ip->lock(ip, 1);
+	r = ip->dump(ip, pool);
+	if (ip->lock)
+		ip->lock(ip, 0);
+	return r;
+}
+
+static struct _jpo
 netmap_interp_list_interp(struct netmap_interp *ip, struct _jpo r, char *pool)
 {
 	struct _jpo *po;
@@ -586,7 +610,7 @@ netmap_interp_list_interp(struct netmap_interp *ip, struct _jpo r, char *pool)
 				goto out;
 			}
 			D("found %s", name);
-			*po = si->interp(si, *po, pool);
+			*po = netmap_interp_interp(si, *po, pool);
 		} else {
 			*po = netmap_interp_list_interp(ip, *po, pool);
 		}
@@ -615,7 +639,7 @@ netmap_interp_list_dump(struct netmap_interp *ip, char *pool)
 		if (po->ty == JPO_ERR)
 			return *po;
 		po++;
-		*po = e->ip->dump(e->ip, pool);
+		*po = netmap_interp_dump(e->ip, pool);
 		if (po->ty == JPO_ERR)
 			return *po;
 		po++;

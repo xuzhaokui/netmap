@@ -284,6 +284,7 @@ int netmap_config_parse(struct netmap_config*, int locked);
 struct netmap_interp {
 	struct _jpo (*interp)(struct netmap_interp *, struct _jpo, char *pool);
 	struct _jpo (*dump)(struct netmap_interp *, char *pool);
+	void	    (*lock)(struct netmap_interp *, int lock);
 };
 
 struct netmap_interp_list_elem {
