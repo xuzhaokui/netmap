@@ -738,6 +738,28 @@ netmap_interp_num_getvar(struct netmap_interp_num *in)
 	}
 }
 
+int
+netmap_interp_num_update(struct netmap_interp_num *in, int64_t v)
+{
+	switch (in->size) {
+	case 1:
+		*(int8_t*)in->var = (int8_t)v;
+		break;
+	case 2:
+		*(int16_t*)in->var = (int16_t)v;
+		break;
+	case 4:
+		*(int32_t*)in->var = (int32_t)v;
+		break;
+	case 8:
+		*(int64_t*)in->var = (int64_t)v;
+		break;
+	default:
+		return EINVAL;
+	}
+	return 0;
+}
+
 static struct _jpo
 netmap_interp_num_interp(struct netmap_interp *ip, struct _jpo r, char *pool)
 {

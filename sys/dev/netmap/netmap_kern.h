@@ -319,11 +319,12 @@ typedef int64_t (*netmap_interp_num_reader)(struct netmap_interp_num *);
 int netmap_interp_num_init(struct netmap_interp_num *, void *var, size_t size,
 		int (*update)(struct netmap_interp_num *, int64_t));
 int netmap_interp_num_uninit(struct netmap_interp_num *);
-#define NETMAP_INTERP_LIST_ADD_RONUM(il, in, v, fmt, ...)				\
+int netmap_interp_num_update(struct netmap_interp_num *, int64_t);
+#define NETMAP_INTERP_LIST_ADD_NUM(il, in, v, u, fmt, ...)				\
 	({										\
 	 	int __rv;								\
 	 	do {									\
-	 		__rv = netmap_interp_num_init(in, &(v), sizeof(v), NULL);	\
+			__rv = netmap_interp_num_init(in, &(v), sizeof(v), u);		\
 			if (__rv)							\
 				break;							\
 			__rv = netmap_interp_list_add(il, &(in)->up, fmt, ##__VA_ARGS__);\
@@ -333,6 +334,10 @@ int netmap_interp_num_uninit(struct netmap_interp_num *);
 		} while (0);								\
 		__rv;									\
 	})
+#define NETMAP_INTERP_LIST_ADD_RONUM(il, in, v, fmt, ...)				\
+	NETMAP_INTERP_LIST_ADD_NUM(il, in, v, NULL, fmt, ##__VA_ARGS__)
+#define NETMAP_INTERP_LIST_ADD_RWNUM(il, in, v, fmt, ...)				\
+	NETMAP_INTERP_LIST_ADD_NUM(il, in, v, netmap_interp_num_update, fmt, ##__VA_ARGS__)
 #define NETMAP_INTERP_LIST_DEL_NUM(il, in) do {						\
 	 	netmap_interp_list_del(il, &(in)->up);					\
 	 	netmap_interp_num_uninit(in);						\
