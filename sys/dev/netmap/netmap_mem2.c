@@ -604,6 +604,24 @@ nm_mem_release_id(struct netmap_mem_d *nmd)
 	NMA_UNLOCK(&nm_mem);
 }
 
+struct netmap_mem_d *
+netmap_mem_find(uint16_t id)
+{
+	struct netmap_mem_d *scan;
+
+	NMA_LOCK(&nm_mem);
+	scan = netmap_last_mem_d;
+	do {
+		if (scan->nm_id == id) {
+			NMA_UNLOCK(&nm_mem);
+			return scan;
+		}
+		scan = scan->next;
+	} while (scan != netmap_last_mem_d);
+	NMA_UNLOCK(&nm_mem);
+	return NULL;
+}
+
 static int
 nm_mem_assign_group(struct netmap_mem_d *nmd, struct device *dev)
 {

@@ -2637,11 +2637,47 @@ netmap_interp_port_uninit(struct netmap_adapter *na)
 {
 	struct netmap_interp_list *il = &na->ip;
 
+	NETMAP_INTERP_LIST_DEL_NUM(il, &na->ip_mem);
 	NETMAP_INTERP_LIST_DEL_NUM(il, &na->ip_users);
 	netmap_interp_list_del(il, &na->ring_ip.up);
 	netmap_interp_list_uninit(&na->ring_ip);
 	netmap_interp_list_del(&netmap_interp_ports, &il->up);
 	netmap_interp_list_uninit(il);
+}
+
+static int64_t
+netmap_interp_memid_read(struct netmap_interp_num *in)
+{
+	struct netmap_adapter *na =
+		container_of(in, struct netmap_adapter, ip_mem);
+	uint16_t memid;
+
+	if (na->nm_mem == NULL)
+		return 0;
+	if (netmap_mem_get_info(na->nm_mem, NULL, NULL, &memid))
+		return 0;
+	return memid;
+}
+
+static int
+netmap_interp_memid_update(struct netmap_interp_num *in, int64_t id)
+{
+	struct netmap_adapter *na =
+		container_of(in, struct netmap_adapter, ip_mem);
+	struct netmap_mem_d *newmem;
+
+	if (na->active_fds > 0)
+		return EBUSY;
+
+	newmem = netmap_mem_find(id);
+	if (newmem == NULL)
+		return ENOENT;
+	if (newmem != na->nm_mem) {
+		netmap_mem_put(na->nm_mem);
+		netmap_mem_get(newmem);
+		na->nm_mem = newmem;
+	}
+	return 0;
 }
 
 static int
@@ -2659,6 +2695,12 @@ netmap_interp_port_init(struct netmap_adapter *na)
 	error = NETMAP_INTERP_LIST_ADD_RONUM(il, &na->ip_users, na->active_fds, "users");
 	if (error)
 		goto fail;
+	error = netmap_interp_num_init(&na->ip_mem,
+			netmap_interp_memid_read, 0,
+			netmap_interp_memid_update);
+	if (error)
+		goto fail;
+	error = netmap_interp_list_add(il, &na->ip_mem.up, "mem");
 	error = netmap_interp_list_init(&na->ring_ip, 10);
 	if (error)
 		goto fail;

@@ -137,6 +137,8 @@ struct netmap_mem_d* netmap_mem_private_new(const char *name,
 	u_int txr, u_int txd, u_int rxr, u_int rxd, u_int extra_bufs, u_int npipes,
 	int* error);
 void	   netmap_mem_delete(struct netmap_mem_d *);
+struct netmap_mem_d *
+	   netmap_mem_find(uint16_t);
 
 //#define NM_DEBUG_MEM_PUTGET 1
 
