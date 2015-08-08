@@ -1575,27 +1575,6 @@ netmap_mem_private_delete(struct netmap_mem_d *nmd)
 	free(nmd, M_DEVBUF);
 }
 
-static int
-netmap_mem_private_config(struct netmap_mem_d *nmd)
-{
-	/* nothing to do, we are configured on creation
- 	 * and configuration never changes thereafter
- 	 */
-	return 0;
-}
-
-static int
-netmap_mem_private_finalize(struct netmap_mem_d *nmd)
-{
-	int err;
-	NMA_LOCK(nmd);
-	nmd->active++;
-	err = netmap_mem_finalize_all(nmd);
-	NMA_UNLOCK(nmd);
-	return err;
-
-}
-
 static void
 netmap_mem_private_deref(struct netmap_mem_d *nmd)
 {
@@ -1681,22 +1660,27 @@ netmap_mem_private_new(const char *name, u_int txr, u_int txd,
 			p[NETMAP_BUF_POOL].num,
 			p[NETMAP_BUF_POOL].size);
 
+#ifdef WITH_NMCONF
+	d->params = (struct netmap_obj_params *)(d + 1);
+#endif
+
 	for (i = 0; i < NETMAP_POOLS_NR; i++) {
 		snprintf(d->pools[i].name, NETMAP_POOL_MAX_NAMSZ,
 				nm_blueprint.pools[i].name,
 				name);
-		err = netmap_config_obj_allocator(&d->pools[i],
-				p[i].num, p[i].size);
-		if (err)
-			goto error;
+		d->params[i].num = p[i].num;
+		d->params[i].size = p[i].size;
 	}
-
-	d->flags &= ~NETMAP_MEM_FINALIZED;
 
 	NMA_LOCK_INIT(d);
 
+	err = netmap_mem_config(d);
+	if (err)
+		goto error;
+
+	d->flags &= ~NETMAP_MEM_FINALIZED;
+
 #ifdef WITH_NMCONF
-	d->params = (struct netmap_obj_params *)(d + 1);
 	err = netmap_mem_interp_init(d);
 	if (err)
 		goto error;
@@ -1713,7 +1697,7 @@ error:
 
 /* call with lock held */
 static int
-netmap_mem_global_config(struct netmap_mem_d *nmd)
+netmap_mem2_config(struct netmap_mem_d *nmd)
 {
 	int i;
 
@@ -1747,12 +1731,12 @@ out:
 }
 
 static int
-netmap_mem_global_finalize(struct netmap_mem_d *nmd)
+netmap_mem2_finalize(struct netmap_mem_d *nmd)
 {
 	int err;
 		
 	/* update configuration if changed */
-	if (netmap_mem_global_config(nmd))
+	if (netmap_mem2_config(nmd))
 		goto out1;
 
 	nmd->active++;
@@ -2038,8 +2022,8 @@ struct netmap_mem_ops netmap_mem_global_ops = {
 	.nmd_get_lut = netmap_mem2_get_lut,
 	.nmd_get_info = netmap_mem2_get_info,
 	.nmd_ofstophys = netmap_mem2_ofstophys,
-	.nmd_config = netmap_mem_global_config,
-	.nmd_finalize = netmap_mem_global_finalize,
+	.nmd_config = netmap_mem2_config,
+	.nmd_finalize = netmap_mem2_finalize,
 	.nmd_deref = netmap_mem_global_deref,
 	.nmd_delete = netmap_mem_global_delete,
 	.nmd_if_offset = netmap_mem2_if_offset,
@@ -2052,8 +2036,8 @@ struct netmap_mem_ops netmap_mem_private_ops = {
 	.nmd_get_lut = netmap_mem2_get_lut,
 	.nmd_get_info = netmap_mem2_get_info,
 	.nmd_ofstophys = netmap_mem2_ofstophys,
-	.nmd_config = netmap_mem_private_config,
-	.nmd_finalize = netmap_mem_private_finalize,
+	.nmd_config = netmap_mem2_config,
+	.nmd_finalize = netmap_mem2_finalize,
 	.nmd_deref = netmap_mem_private_deref,
 	.nmd_if_offset = netmap_mem2_if_offset,
 	.nmd_delete = netmap_mem_private_delete,
