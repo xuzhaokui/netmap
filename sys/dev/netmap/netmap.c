@@ -2630,6 +2630,8 @@ enum txrx tx, int flags)
 }
 #endif
 
+#ifdef WITH_NMCONF
+
 static void
 netmap_interp_port_uninit(struct netmap_adapter *na)
 {
@@ -2642,7 +2644,6 @@ netmap_interp_port_uninit(struct netmap_adapter *na)
 	netmap_interp_list_uninit(il);
 }
 
-#ifdef WITH_NMCONF
 static int
 netmap_interp_port_init(struct netmap_adapter *na)
 {
