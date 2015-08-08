@@ -821,7 +821,7 @@ netmap_krings_create(struct netmap_adapter *na, u_int tailroom)
 			init_waitqueue_head(&kring->si);
 #ifdef WITH_NMCONF
 			netmap_interp_list_init(&kring->ip, 10);
-			netmap_interp_list_add(&na->ring_ip, kring->name, &kring->ip.up);			
+			netmap_interp_list_add(&na->ring_ip, &kring->ip.up, "%s%d", nm_txrx2str(t), i);
 #endif
 		}
 		init_waitqueue_head(&na->si[t]);
@@ -2648,13 +2648,13 @@ netmap_interp_port_init(struct netmap_adapter *na)
 	error = netmap_interp_list_init(&na->ip, 10);
 	if (error)
 		goto fail;
-	error = netmap_interp_list_add(&netmap_interp_ports, na->name, &na->ip.up);
+	error = netmap_interp_list_add(&netmap_interp_ports, &na->ip.up, na->name);
 	if (error)
 		goto fail;
 	error = netmap_interp_list_init(&na->ring_ip, 10);
 	if (error)
 		goto fail;
-	error = netmap_interp_list_add(&na->ip, "rings", &na->ring_ip.up);
+	error = netmap_interp_list_add(&na->ip, &na->ring_ip.up, "rings");
 	if (error)
 		goto fail;
 	return 0;
@@ -3250,8 +3250,8 @@ netmap_init(void)
 	error = netmap_interp_list_init(&netmap_interp_ports, 10);
 	if (error)
 		goto fail;
-	error = netmap_interp_list_add(&netmap_interp_root, "port",
-			&netmap_interp_ports.up);
+	error = netmap_interp_list_add(&netmap_interp_root,
+			&netmap_interp_ports.up, "port");
 	if (error)
 		goto fail;
 #endif /* WITH_NMCONF */

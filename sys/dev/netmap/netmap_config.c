@@ -638,10 +638,12 @@ netmap_interp_list_uninit(struct netmap_interp_list *il)
 }
 
 int
-netmap_interp_list_add(struct netmap_interp_list *il, const char *name,
-		struct netmap_interp *ip)
+netmap_interp_list_add(struct netmap_interp_list *il, struct netmap_interp *ip,
+		const char *fmt, ...)
 {
 	struct netmap_interp_list_elem *e, *newlist;
+	va_list ap;
+	int n;
 
 	if (il->nextfree >= il->nelem) {
 		u_int newnelem = il->nelem * 2;
@@ -653,7 +655,11 @@ netmap_interp_list_add(struct netmap_interp_list *il, const char *name,
 		il->nelem = newnelem;
 	}
 	e = &il->list[il->nextfree++];
-	strncpy(e->name, name, NETMAP_CONFIG_MAXNAME);
+	va_start(ap, fmt);
+	n = vsnprintf(e->name, NETMAP_CONFIG_MAXNAME, fmt, ap);
+	va_end(ap);
+	if (n >= NETMAP_CONFIG_MAXNAME)
+		return ENAMETOOLONG;
 	e->ip = ip;
 	return 0;
 }

@@ -300,7 +300,7 @@ netmap_mem_interp_init(struct netmap_mem_d *nmd)
 	error = netmap_interp_list_init(&nmd->ip, 3);
 	if (error)
 		goto fail;
-	error = netmap_interp_list_add(&netmap_interp_mem, nmd->name, &nmd->ip.up);
+	error = netmap_interp_list_add(&netmap_interp_mem, &nmd->ip.up, nmd->name);
 	if (error)
 		goto fail;
 	for (i = 0; i < NETMAP_POOLS_NR; i++) {
@@ -308,8 +308,8 @@ netmap_mem_interp_init(struct netmap_mem_d *nmd)
 		if (error)
 			goto fail_del;
 		error = netmap_interp_list_add(&nmd->ip,
-				netmap_mempool_idx2name(i),
-				&nmd->pools[i].ip.up);
+				&nmd->pools[i].ip.up,
+				netmap_mempool_idx2name(i));
 		if (error)
 			goto fail_del;
 	}
@@ -1702,8 +1702,8 @@ netmap_mem_init(void)
 	error = netmap_interp_list_init(&netmap_interp_mem, 10);
 	if (error)
 		goto fail_put;
-	error = netmap_interp_list_add(&netmap_interp_root, "mem",
-			&netmap_interp_mem.up);
+	error = netmap_interp_list_add(&netmap_interp_root,
+			&netmap_interp_mem.up, "mem");
 	if (error)
 		goto fail_uninit;
 	error = netmap_mem_interp_init(&nm_mem);

@@ -346,7 +346,7 @@ nm_find_bridge(const char *name, int create)
 #ifdef WITH_NMCONF
 		if (netmap_interp_list_init(&b->ip, 10))
 			return NULL;
-		if (netmap_interp_list_add(&netmap_interp_bridge, b->bdg_basename, &b->ip.up)) {
+		if (netmap_interp_list_add(&netmap_interp_bridge, &b->ip.up, b->bdg_basename)) {
 			netmap_interp_list_uninit(&b->ip);
 			return NULL;
 		}
@@ -2404,8 +2404,8 @@ netmap_init_bridges(void)
 	error = netmap_interp_list_init(&netmap_interp_bridge, 10);
 	if (error)
 		goto fail;
-	error = netmap_interp_list_add(&netmap_interp_root, "bridge",
-			&netmap_interp_bridge.up);
+	error = netmap_interp_list_add(&netmap_interp_root,
+			&netmap_interp_bridge.up, "bridge");
 	if (error)
 		goto fail;
 #endif /* WITH_NMCONF */
