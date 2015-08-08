@@ -121,7 +121,13 @@ struct netmap_obj_pool {
 	u_int r_objsize;
 
 #ifdef WITH_NMCONF
+	/* r/o */
 	struct netmap_interp_list ip;
+	struct netmap_interp_num ip_total;
+	struct netmap_interp_num ip_free;
+	struct netmap_interp_num ip_size;
+	struct netmap_interp_num ip_numclusters;
+	struct netmap_interp_num ip_clustsize;
 #endif
 };
 
@@ -274,13 +280,6 @@ static int nm_mem_assign_group(struct netmap_mem_d *, struct device *);
 #ifdef WITH_NMCONF
 struct netmap_interp_list netmap_interp_mem;
 
-static const char *
-netmap_mempool_idx2name(int idx)
-{
-	static const char *names[] = { "if", "ring", "buf" };
-	return names[idx];
-}
-
 static void
 netmap_mem_interp_uninit(struct netmap_mem_d *nmd)
 {
@@ -288,6 +287,14 @@ netmap_mem_interp_uninit(struct netmap_mem_d *nmd)
 	struct netmap_interp_list *il = &nmd->ip;
 
 	for (i = 0; i < NETMAP_POOLS_NR; i++) {
+		struct netmap_obj_pool *p = nmd->pools + i;
+		struct netmap_interp_list *pil = &p->ip;
+
+		NETMAP_INTERP_LIST_DEL_NUM(pil, &p->ip_clustsize);
+		NETMAP_INTERP_LIST_DEL_NUM(pil, &p->ip_numclusters);
+		NETMAP_INTERP_LIST_DEL_NUM(pil, &p->ip_size);
+		NETMAP_INTERP_LIST_DEL_NUM(pil, &p->ip_free);
+		NETMAP_INTERP_LIST_DEL_NUM(pil, &p->ip_total);
 		netmap_interp_list_del(il, &nmd->pools[i].ip.up);
 		netmap_interp_list_uninit(&nmd->pools[i].ip);
 	}
@@ -303,6 +310,7 @@ netmap_mem_interp_init(struct netmap_mem_d *nmd)
 {
 	int error, i;
 	struct netmap_interp_list *il = &nmd->ip;
+	static const char *names[] = { "if", "ring", "buf" };
 
 	snprintf(nmd->name, NM_MEM_NAMESZ, "%d", nmd->nm_id);
 	error = netmap_interp_list_init(il, 10);
@@ -318,12 +326,32 @@ netmap_mem_interp_init(struct netmap_mem_d *nmd)
 	if (error)
 		goto fail;
 	for (i = 0; i < NETMAP_POOLS_NR; i++) {
-		error = netmap_interp_list_init(&nmd->pools[i].ip, 10);
+		struct netmap_obj_pool *p = nmd->pools + i;
+		struct netmap_interp_list *pil = &p->ip;
+
+		error = netmap_interp_list_init(pil, 10);
 		if (error)
 			goto fail_del;
-		error = netmap_interp_list_add(&nmd->ip,
-				&nmd->pools[i].ip.up,
-				netmap_mempool_idx2name(i));
+		error = NETMAP_INTERP_LIST_ADD_RONUM(pil, &p->ip_total, p->objtotal, "total");
+		if (error)
+			goto fail_del;
+		error = NETMAP_INTERP_LIST_ADD_RONUM(pil, &p->ip_free, p->objfree, "free");
+		if (error)
+			goto fail_del;
+		error = NETMAP_INTERP_LIST_ADD_RONUM(pil, &p->ip_size, p->_objsize, "size");
+		if (error)
+			goto fail_del;
+		error = NETMAP_INTERP_LIST_ADD_RONUM(pil, &p->ip_numclusters,
+				p->_numclusters, "num-clusters");
+		if (error)
+			goto fail_del;
+		error = NETMAP_INTERP_LIST_ADD_RONUM(pil, &p->ip_clustsize,
+				p->_clustsize, "cluster-size");
+		if (error)
+			goto fail_del;
+		if (error)
+			goto fail_del;
+		error = netmap_interp_list_add(&nmd->ip, &pil->up, names[i]);
 		if (error)
 			goto fail_del;
 	}
