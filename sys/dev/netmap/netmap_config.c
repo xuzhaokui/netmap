@@ -534,6 +534,18 @@ netmap_interp_error(char *pool, const char *format, ...)
 #undef	NM_INTERP_ERRSIZE
 }
 
+static int
+netmap_interp_is_dump(struct _jpo r, char *pool)
+{
+	const char *str;
+
+	if (r.ty != JPO_STRING)
+		return 0;
+
+	str = jslr_get_string(pool, r);
+	return (strcmp("dump", str) == 0);
+}
+
 static struct _jpo
 netmap_interp_list_interp(struct netmap_interp *ip, struct _jpo r, char *pool)
 {
@@ -541,13 +553,8 @@ netmap_interp_list_interp(struct netmap_interp *ip, struct _jpo r, char *pool)
 	int i, len, ty = r.len;
 	struct netmap_interp_list *il = (struct netmap_interp_list *)ip;
 
-	if (r.ty == JPO_STRING) {
-		const char *str = jslr_get_string(pool, r);
-		if (strcmp("dump", str) == 0) {
-			r = il->up.dump(ip, pool);
-			goto out;
-		}
-		r = netmap_interp_error(pool, "not recognized: %s", str);
+	if (netmap_interp_is_dump(r, pool)) {
+		r = ip->dump(ip, pool);
 		goto out;
 	}
 
@@ -711,5 +718,104 @@ netmap_interp_list_search(struct netmap_interp_list *il, const char *name)
 	return il->list[i].ip;
 }
 
+static int64_t
+netmap_interp_num_getvar(struct netmap_interp_num *in)
+{
+	switch (in->size) {
+	case 1:
+		return *(int8_t*)in->var;
+	case 2:
+		return *(int16_t*)in->var;
+	case 4:
+		return *(int32_t*)in->var;
+	case 8:
+		return *(int64_t*)in->var;
+	default:
+		D("unsupported size %zd", in->size);
+		return 0;
+	}
+}
+
+static void
+netmap_interp_num_setvar(struct netmap_interp_num *in, int64_t nv)
+{
+	switch (in->size) {
+	case 1:
+		*(int8_t*)in->var = (int8_t)nv;
+		break;
+	case 2:
+		*(int16_t*)in->var = (int16_t)nv;
+	case 4:
+		*(int32_t*)in->var = (int32_t)nv;
+	case 8:
+		*(int64_t*)in->var = (int64_t)nv;
+	default:
+		D("unsupported size %zd", in->size);
+	}
+}
+
+static struct _jpo
+netmap_interp_num_interp(struct netmap_interp *ip, struct _jpo r, char *pool)
+{
+	int64_t v, nv;
+	struct netmap_interp_num *in = (struct netmap_interp_num *)ip;
+	int error;
+
+	if (netmap_interp_is_dump(r, pool)) {
+		r = ip->dump(ip, pool);
+		goto done;
+	}
+
+	if (r.ty != JPO_NUM) {
+		r = netmap_interp_error(pool, "need number");
+		goto done;
+	}
+
+	nv = jslr_get_num(pool, r);
+	v = netmap_interp_num_getvar(in);
+	if (v == nv)
+		goto done;
+	if (in->update == NULL) {
+		r = netmap_interp_error(pool, "read-only");
+		goto done;
+	}
+	error = in->update(in, nv);
+	if (error) {
+		r = netmap_interp_error(pool, "invalid; %ld", nv);
+		goto done;
+	}
+	netmap_interp_num_setvar(in, nv);
+
+done:
+	return r;
+}
+
+static struct _jpo
+netmap_interp_num_dump(struct netmap_interp *ip, char *pool)
+{
+	struct netmap_interp_num *in = (struct netmap_interp_num*)ip;
+	int64_t v = netmap_interp_num_getvar(in);
+
+	return jslr_new_num(pool, v);
+}
+
+
+int
+netmap_interp_num_init(struct netmap_interp_num *in, void *var, size_t size,
+		int (*update)(struct netmap_interp_num *, int64_t))
+{
+	in->up.interp = netmap_interp_num_interp;
+	in->up.dump = netmap_interp_num_dump;
+	in->var = var;
+	in->size = size;
+	in->update = update;
+	return 0;
+}
+
+int
+netmap_interp_num_uninit(struct netmap_interp_num *in)
+{
+	return 0;
+}
 
 #endif /* WITH_NMCONF */

@@ -308,6 +308,36 @@ int netmap_interp_list_del(struct netmap_interp_list *, struct netmap_interp *);
 struct netmap_interp *netmap_interp_list_search(struct netmap_interp_list *,
 		const char *);
 
+struct netmap_interp_num {
+	struct netmap_interp up;
+	void *var;
+	size_t size;
+	int (*update)(struct netmap_interp_num *, int64_t);
+};
+
+int netmap_interp_num_init(struct netmap_interp_num *, void *var, size_t size,
+		int (*update)(struct netmap_interp_num *, int64_t));
+int netmap_interp_num_uninit(struct netmap_interp_num *);
+#define NETMAP_INTERP_LIST_ADD_RONUM(il, in, v, fmt, ...)				\
+	({										\
+	 	int __rv;								\
+	 	do {									\
+	 		__rv = netmap_interp_num_init(in, &(v), sizeof(v), NULL);	\
+			if (__rv)							\
+				break;							\
+			__rv = netmap_interp_list_add(il, &(in)->up, fmt, ##__VA_ARGS__);\
+			if (__rv) {							\
+				netmap_interp_num_uninit(in);				\
+			}								\
+		} while (0);								\
+		__rv;									\
+	})
+#define NETMAP_INTERP_LIST_DEL_NUM(il, in) do {						\
+	 	netmap_interp_list_del(il, &(in)->up);					\
+	 	netmap_interp_num_uninit(in);						\
+	} while (0)
+
+
 extern struct netmap_interp_list netmap_interp_root;
 extern struct netmap_interp_list netmap_interp_ports;
 

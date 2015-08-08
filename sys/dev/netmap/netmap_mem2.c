@@ -205,6 +205,9 @@ struct netmap_mem_d {
 #define	NM_MEM_NAMESZ	16
 	char name[NM_MEM_NAMESZ];
 	struct netmap_interp_list ip;
+	struct netmap_interp_num ip_users;
+	struct netmap_interp_num ip_totsize;
+	struct netmap_interp_num ip_iogrp;
 #endif /* WITH_NMCONF */
 };
 
@@ -282,11 +285,15 @@ static void
 netmap_mem_interp_uninit(struct netmap_mem_d *nmd)
 {
 	int i;
+	struct netmap_interp_list *il = &nmd->ip;
 
 	for (i = 0; i < NETMAP_POOLS_NR; i++) {
-		netmap_interp_list_del(&nmd->ip, &nmd->pools[i].ip.up);
+		netmap_interp_list_del(il, &nmd->pools[i].ip.up);
 		netmap_interp_list_uninit(&nmd->pools[i].ip);
 	}
+	NETMAP_INTERP_LIST_DEL_NUM(il, &nmd->ip_iogrp);
+	NETMAP_INTERP_LIST_DEL_NUM(il, &nmd->ip_totsize);
+	NETMAP_INTERP_LIST_DEL_NUM(il, &nmd->ip_users);
 	netmap_interp_list_del(&netmap_interp_mem, &nmd->ip.up);
 	netmap_interp_list_uninit(&nmd->ip);
 }
@@ -295,12 +302,19 @@ static int
 netmap_mem_interp_init(struct netmap_mem_d *nmd)
 {
 	int error, i;
+	struct netmap_interp_list *il = &nmd->ip;
 
 	snprintf(nmd->name, NM_MEM_NAMESZ, "%d", nmd->nm_id);
-	error = netmap_interp_list_init(&nmd->ip, 3);
+	error = netmap_interp_list_init(il, 10);
 	if (error)
 		goto fail;
-	error = netmap_interp_list_add(&netmap_interp_mem, &nmd->ip.up, nmd->name);
+	error = NETMAP_INTERP_LIST_ADD_RONUM(il, &nmd->ip_users, nmd->active, "users");
+	if (error)
+		goto fail;
+	error = NETMAP_INTERP_LIST_ADD_RONUM(il, &nmd->ip_totsize, nmd->nm_totalsize, "totsize");
+	if (error)
+		goto fail;
+	error = NETMAP_INTERP_LIST_ADD_RONUM(il, &nmd->ip_iogrp, nmd->nm_grp, "iogrp");
 	if (error)
 		goto fail;
 	for (i = 0; i < NETMAP_POOLS_NR; i++) {
@@ -313,6 +327,9 @@ netmap_mem_interp_init(struct netmap_mem_d *nmd)
 		if (error)
 			goto fail_del;
 	}
+	error = netmap_interp_list_add(&netmap_interp_mem, &nmd->ip.up, nmd->name);
+	if (error)
+		goto fail;
 
 	return 0;
 
