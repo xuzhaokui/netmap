@@ -383,6 +383,9 @@ again:
 
 #define NETMAP_CONFIG_POOL_SIZE (1<<12)
 
+static struct _jpo netmap_interp_interp(struct netmap_interp *,
+		struct _jpo, char *);
+
 int
 netmap_config_parse(struct netmap_config *c, int locked)
 {
@@ -416,7 +419,7 @@ netmap_config_parse(struct netmap_config *c, int locked)
 	D("parse OK: ty %u len %u ptr %u", r.ty, r.len, r.ptr);
 	if (!locked)
 		NMG_LOCK();
-	r = netmap_interp_root.up.interp(&netmap_interp_root.up, r, pool);
+	r = netmap_interp_interp(&netmap_interp_root.up, r, pool);
 	if (!locked)
 		NMG_UNLOCK();
 	error = netmap_config_dump(pool, &r, o, 0, 0);
@@ -551,7 +554,11 @@ netmap_interp_interp(struct netmap_interp *ip, struct _jpo r, char *pool)
 {
 	if (ip->lock)
 		ip->lock(ip, 1);
-	r = ip->interp(ip, r, pool);
+	if (netmap_interp_is_dump(r, pool)) {
+		r = ip->dump(ip, pool);
+	} else {
+		r = ip->interp(ip, r, pool);
+	}
 	if (ip->lock)
 		ip->lock(ip, 0);
 	return r;
@@ -576,11 +583,6 @@ netmap_interp_list_interp(struct netmap_interp *ip, struct _jpo r, char *pool)
 	struct _jpo *po;
 	int i, len, ty = r.len;
 	struct netmap_interp_list *il = (struct netmap_interp_list *)ip;
-
-	if (netmap_interp_is_dump(r, pool)) {
-		r = ip->dump(ip, pool);
-		goto out;
-	}
 
 	if (r.ty != JPO_PTR || (ty != JPO_OBJECT && ty != JPO_ARRAY)) {
 		r = netmap_interp_error(pool, "need object or array");
@@ -792,11 +794,6 @@ netmap_interp_num_interp(struct netmap_interp *ip, struct _jpo r, char *pool)
 	int64_t v, nv;
 	struct netmap_interp_num *in = (struct netmap_interp_num *)ip;
 	int error;
-
-	if (netmap_interp_is_dump(r, pool)) {
-		r = ip->dump(ip, pool);
-		goto done;
-	}
 
 	if (r.ty != JPO_NUM) {
 		r = netmap_interp_error(pool, "need number");
