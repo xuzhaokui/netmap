@@ -215,9 +215,9 @@ struct netmap_mem_d {
 
 	struct netmap_obj_params *params;
 
-#ifdef WITH_NMCONF
 #define	NM_MEM_NAMESZ	16
 	char name[NM_MEM_NAMESZ];
+#ifdef WITH_NMCONF
 	struct netmap_interp_list ip;
 	struct netmap_interp_num ip_users;
 	struct netmap_interp_num ip_totsize;
@@ -537,7 +537,9 @@ struct netmap_mem_d nm_mem = {	/* Our memory allocator. */
 	.prev = &nm_mem,
 	.next = &nm_mem,
 
-	.ops = &netmap_mem_global_ops
+	.ops = &netmap_mem_global_ops,
+
+	.name = "1"
 };
 
 
@@ -1589,8 +1591,8 @@ netmap_mem_private_deref(struct netmap_mem_d *nmd)
  * allocator for private memory
  */
 struct netmap_mem_d *
-netmap_mem_private_new(const char *name, u_int txr, u_int txd,
-	u_int rxr, u_int rxd, u_int extra_bufs, u_int npipes, int *perr)
+netmap_mem_private_new(u_int txr, u_int txd, u_int rxr, u_int rxd,
+		u_int extra_bufs, u_int npipes, int *perr)
 {
 	struct netmap_mem_d *d = NULL;
 	struct netmap_obj_params p[NETMAP_POOLS_NR];
@@ -1614,7 +1616,7 @@ netmap_mem_private_new(const char *name, u_int txr, u_int txd,
 	err = nm_mem_assign_id(d);
 	if (err)
 		goto error;
-
+	snprintf(d->name, NM_MEM_NAMESZ, "%d", d->nm_id);
 	/* account for the fake host rings */
 	txr++;
 	rxr++;
@@ -1667,7 +1669,7 @@ netmap_mem_private_new(const char *name, u_int txr, u_int txd,
 	for (i = 0; i < NETMAP_POOLS_NR; i++) {
 		snprintf(d->pools[i].name, NETMAP_POOL_MAX_NAMSZ,
 				nm_blueprint.pools[i].name,
-				name);
+				d->name);
 		d->params[i].num = p[i].num;
 		d->params[i].size = p[i].size;
 	}
