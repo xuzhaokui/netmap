@@ -596,6 +596,7 @@ netmap_interp_list_interp(struct netmap_interp *ip, struct _jpo r, char *pool)
 	len = po->len;
 	po++;
 	for (i = 0; i < len; i++) {
+		struct _jpo r1;
 		if (ty == JPO_OBJECT) {
 			const char *name = jslr_get_string(pool, *po++);
 			struct netmap_interp *si;
@@ -606,15 +607,16 @@ netmap_interp_list_interp(struct netmap_interp *ip, struct _jpo r, char *pool)
 			}
 			si = netmap_interp_list_search(il, name);
 			if (si == NULL) {
-				r = netmap_interp_error(pool, "%s: not found", name);
-				goto out;
+				r1 = netmap_interp_error(pool, "%s: not found", name);
+				goto next;
 			}
 			D("found %s", name);
-			*po = netmap_interp_interp(si, *po, pool);
+			r1 = netmap_interp_interp(si, *po, pool);
 		} else {
-			*po = netmap_interp_list_interp(ip, *po, pool);
+			r1 = netmap_interp_list_interp(ip, *po, pool);
 		}
-		po++;
+	next:
+		*po++ = r1;
 	}
 
 out:
