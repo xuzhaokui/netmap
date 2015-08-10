@@ -299,12 +299,29 @@ struct netmap_interp_list {
 	u_int minelem;
 	u_int nelem;
 	u_int nextfree;
+
+	struct _jpo (*new)(struct _jpo, char *);
+	void (*delete)(struct netmap_interp *);
 };
 
 int netmap_interp_list_init(struct netmap_interp_list *, u_int nelem);
 void netmap_interp_list_uninit(struct netmap_interp_list *);
-int netmap_interp_list_add(struct netmap_interp_list *, struct netmap_interp *,
-		const char *fmt, ...);
+struct netmap_interp_list_elem *netmap_interp_list_new_elem(struct netmap_interp_list *);
+int netmap_interp_list_elem_fill(struct netmap_interp_list_elem *e,
+		struct netmap_interp *, const char *fmt, ...);
+#define netmap_interp_list_add(il, ip, fmt, ...) ({ 		\
+	int __rv = 0;						\
+	do {							\
+		struct netmap_interp_list_elem *__e =		\
+			netmap_interp_list_new_elem(il);	\
+		if (__e == NULL) {				\
+			__rv = ENOMEM;				\
+			break;					\
+		}						\
+		__rv = netmap_interp_list_elem_fill(__e, ip,	\
+			fmt, ##__VA_ARGS__);			\
+	} while (0); __rv; })
+
 int netmap_interp_list_del(struct netmap_interp_list *, struct netmap_interp *);
 struct netmap_interp *netmap_interp_list_search(struct netmap_interp_list *,
 		const char *);

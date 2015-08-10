@@ -672,30 +672,39 @@ netmap_interp_list_uninit(struct netmap_interp_list *il)
 	memset(il, 0, sizeof(*il));
 }
 
-int
-netmap_interp_list_add(struct netmap_interp_list *il, struct netmap_interp *ip,
-		const char *fmt, ...)
+struct netmap_interp_list_elem *
+netmap_interp_list_new_elem(struct netmap_interp_list *il)
 {
-	struct netmap_interp_list_elem *e, *newlist;
-	va_list ap;
-	int n;
+	struct netmap_interp_list_elem *newlist;
 
 	if (il->nextfree >= il->nelem) {
 		u_int newnelem = il->nelem * 2;
 		newlist = realloc(il->list, sizeof(*il->list) * newnelem,
 				M_DEVBUF, M_ZERO);
 		if (newlist == NULL)
-			return ENOMEM;
+			return NULL;
 		il->list = newlist;
 		il->nelem = newnelem;
 	}
-	e = &il->list[il->nextfree++];
+	return &il->list[il->nextfree++];
+}
+
+int
+netmap_interp_list_elem_fill(struct netmap_interp_list_elem *e,
+		struct netmap_interp *ip,
+		const char *fmt, ...)
+{
+	va_list ap;
+	int n;
+
+	e->ip = ip;
 	va_start(ap, fmt);
 	n = vsnprintf(e->name, NETMAP_CONFIG_MAXNAME, fmt, ap);
 	va_end(ap);
+
 	if (n >= NETMAP_CONFIG_MAXNAME)
 		return ENAMETOOLONG;
-	e->ip = ip;
+
 	return 0;
 }
 
