@@ -291,6 +291,7 @@ struct netmap_interp_list_elem {
 #define	NETMAP_CONFIG_MAXNAME	64
 	char name[NETMAP_CONFIG_MAXNAME];
 	struct netmap_interp *ip;
+	int have_ref;
 };
 
 struct netmap_interp_list {
@@ -300,7 +301,7 @@ struct netmap_interp_list {
 	u_int nelem;
 	u_int nextfree;
 
-	struct _jpo (*new)(struct _jpo, char *);
+	int (*new)(struct netmap_interp_list_elem *);
 	void (*delete)(struct netmap_interp *);
 };
 
@@ -323,9 +324,6 @@ int netmap_interp_list_elem_fill(struct netmap_interp_list_elem *e,
 	} while (0); __rv; })
 
 int netmap_interp_list_del(struct netmap_interp_list *, struct netmap_interp *);
-struct netmap_interp *netmap_interp_list_search(struct netmap_interp_list *,
-		const char *);
-
 struct netmap_interp_num {
 	struct netmap_interp up;
 	void *var;

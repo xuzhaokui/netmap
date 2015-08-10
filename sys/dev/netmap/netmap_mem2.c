@@ -329,7 +329,7 @@ netmap_mem_interp_lock(struct netmap_interp *i, int lock)
 }
 
 static int
-netmap_mem_interp_init(struct netmap_mem_d *nmd)
+netmap_mem_interp_init(struct netmap_mem_d *nmd, struct netmap_interp_list_elem *e)
 {
 	int error, i;
 	struct netmap_interp_list *il = &nmd->ip;
@@ -385,7 +385,8 @@ netmap_mem_interp_init(struct netmap_mem_d *nmd)
 		if (error)
 			goto fail_del;
 	}
-	error = netmap_interp_list_add(&netmap_interp_mem, &nmd->ip.up, nmd->name);
+	D("filling %s", nmd->name);
+	error = netmap_interp_list_elem_fill(e, &nmd->ip.up, nmd->name);
 	if (error)
 		goto fail;
 
@@ -395,6 +396,17 @@ fail_del:
 	netmap_mem_interp_uninit(nmd);
 fail:
 	return error;
+}
+
+int
+netmap_mem_interp_add(struct netmap_mem_d *nmd)
+{
+	struct netmap_interp_list_elem *e;
+
+	e = netmap_interp_list_new_elem(&netmap_interp_mem);
+	if (e == NULL)
+		return ENOMEM;
+	return netmap_mem_interp_init(nmd, e);
 }
 #endif /* WITH_NMCONF */
 
@@ -1449,7 +1461,7 @@ netmap_mem_unmap(struct netmap_obj_pool *p, struct netmap_adapter *na)
 {
 	int i, lim = p->_objtotal;
 
-	if (na->pdev == NULL)
+	if (na == NULL || na->pdev == NULL)
 		return 0;
 
 #if defined(__FreeBSD__)
@@ -1591,13 +1603,10 @@ netmap_mem_private_deref(struct netmap_mem_d *nmd)
  * allocator for private memory
  */
 struct netmap_mem_d *
-netmap_mem_private_new(u_int txr, u_int txd, u_int rxr, u_int rxd,
-		u_int extra_bufs, u_int npipes, int *perr)
+_netmap_mem_private_new(struct netmap_obj_params *p, int *perr)
 {
 	struct netmap_mem_d *d = NULL;
-	struct netmap_obj_params p[NETMAP_POOLS_NR];
-	int i, err;
-	u_int v, maxd;
+	int i, err = 0;
 #ifdef WITH_NMCONF
 	size_t extra = sizeof(struct netmap_obj_params) * NETMAP_POOLS_NR;
 #else
@@ -1617,6 +1626,44 @@ netmap_mem_private_new(u_int txr, u_int txd, u_int rxr, u_int rxd,
 	if (err)
 		goto error;
 	snprintf(d->name, NM_MEM_NAMESZ, "%d", d->nm_id);
+
+#ifdef WITH_NMCONF
+	d->params = (struct netmap_obj_params *)(d + 1);
+#endif
+
+	for (i = 0; i < NETMAP_POOLS_NR; i++) {
+		snprintf(d->pools[i].name, NETMAP_POOL_MAX_NAMSZ,
+				nm_blueprint.pools[i].name,
+				d->name);
+		d->params[i].num = p[i].num;
+		d->params[i].size = p[i].size;
+	}
+
+	NMA_LOCK_INIT(d);
+
+	err = netmap_mem_config(d);
+	if (err)
+		goto error;
+
+	d->flags &= ~NETMAP_MEM_FINALIZED;
+
+	return d;
+
+error:
+	netmap_mem_private_delete(d);
+	if (perr)
+		*perr = err;
+	return NULL;
+}
+
+struct netmap_mem_d *
+netmap_mem_private_new(u_int txr, u_int txd, u_int rxr, u_int rxd,
+		u_int extra_bufs, u_int npipes, int *perr)
+{
+	struct netmap_mem_d *d = NULL;
+	struct netmap_obj_params p[NETMAP_POOLS_NR];
+	int i, err = 0;
+	u_int v, maxd;
 	/* account for the fake host rings */
 	txr++;
 	rxr++;
@@ -1662,28 +1709,12 @@ netmap_mem_private_new(u_int txr, u_int txd, u_int rxr, u_int rxd,
 			p[NETMAP_BUF_POOL].num,
 			p[NETMAP_BUF_POOL].size);
 
-#ifdef WITH_NMCONF
-	d->params = (struct netmap_obj_params *)(d + 1);
-#endif
-
-	for (i = 0; i < NETMAP_POOLS_NR; i++) {
-		snprintf(d->pools[i].name, NETMAP_POOL_MAX_NAMSZ,
-				nm_blueprint.pools[i].name,
-				d->name);
-		d->params[i].num = p[i].num;
-		d->params[i].size = p[i].size;
-	}
-
-	NMA_LOCK_INIT(d);
-
-	err = netmap_mem_config(d);
-	if (err)
+	d = _netmap_mem_private_new(p, perr);
+	if (d == NULL)
 		goto error;
 
-	d->flags &= ~NETMAP_MEM_FINALIZED;
-
 #ifdef WITH_NMCONF
-	err = netmap_mem_interp_init(d);
+	err = netmap_mem_interp_add(d);
 	if (err)
 		goto error;
 #endif
@@ -1779,6 +1810,33 @@ netmap_mem_global_delete(struct netmap_mem_d *nmd)
 	NMA_LOCK_DESTROY(&nm_mem);
 }
 
+#ifdef WITH_NMCONF
+static int
+netmap_mem_interp_new(struct netmap_interp_list_elem *e)
+{
+	struct netmap_mem_d *d;
+	int err = 0;
+
+	D("");
+	d = _netmap_mem_private_new(netmap_min_priv_params, &err);
+	if (d == NULL)
+		return err;
+	netmap_mem_get(d);
+	D("");
+	return netmap_mem_interp_init(d, e);
+}
+
+static void
+netmap_mem_interp_delete(struct netmap_interp *i)
+{
+	struct netmap_interp_list *il = 
+		(struct netmap_interp_list *)i;
+	struct netmap_mem_d *d =
+		container_of(il, struct netmap_mem_d, ip);
+	netmap_mem_put(d);
+}
+#endif
+
 int
 netmap_mem_init(void)
 {
@@ -1791,11 +1849,13 @@ netmap_mem_init(void)
 	error = netmap_interp_list_init(&netmap_interp_mem, 10);
 	if (error)
 		goto fail_put;
+	netmap_interp_mem.new = netmap_mem_interp_new;
+	netmap_interp_mem.delete = netmap_mem_interp_delete;
 	error = netmap_interp_list_add(&netmap_interp_root,
 			&netmap_interp_mem.up, "mem");
 	if (error)
 		goto fail_uninit;
-	error = netmap_mem_interp_init(&nm_mem);
+	error = netmap_mem_interp_add(&nm_mem);
 	if (error)
 		goto fail_uninit2;
 #endif /* WITH_NMCONF */

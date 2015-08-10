@@ -538,7 +538,7 @@ netmap_interp_error(char *pool, const char *format, ...)
 }
 
 static int
-netmap_interp_is_dump(struct _jpo r, char *pool)
+netmap_interp_streq(struct _jpo r, char *pool, const char *str1)
 {
 	const char *str;
 
@@ -546,7 +546,13 @@ netmap_interp_is_dump(struct _jpo r, char *pool)
 		return 0;
 
 	str = jslr_get_string(pool, r);
-	return (strcmp("dump", str) == 0);
+	return (strcmp(str1, str) == 0);
+}
+
+static int
+netmap_interp_is_dump(struct _jpo r, char *pool)
+{
+	return netmap_interp_streq(r, pool, "dump");
 }
 
 static struct _jpo
@@ -578,6 +584,54 @@ netmap_interp_dump(struct netmap_interp *ip, char *pool)
 }
 
 static struct _jpo
+netmap_interp_list_delete(struct netmap_interp_list *il, struct netmap_interp_list_elem *e,
+		char *pool)
+{
+	if (il->delete == NULL)
+		return netmap_interp_error(pool, "'delete' not supported");
+	if (!e->have_ref)
+		return netmap_interp_error(pool, "busy");
+	il->delete(e->ip);
+	e->have_ref = 0;
+	return jslr_new_object(pool, 0);
+}
+
+static struct netmap_interp_list_elem *
+netmap_interp_list_search(struct netmap_interp_list *il, const char *name);
+
+static struct netmap_interp_list_elem *
+netmap_interp_list_new(struct netmap_interp_list *il, struct _jpo *pn, char *pool)
+{
+	struct netmap_interp_list_elem *e = NULL;
+	struct _jpo o;
+	int error;
+
+	if (il->new == NULL) {
+		o = netmap_interp_error(pool, "not supported");
+		goto out;
+	}
+	e = netmap_interp_list_new_elem(il);
+	if (e == NULL) {
+		o = netmap_interp_error(pool, "out of memory");
+		goto out;
+	}
+	error = il->new(e);
+	if (e->ip == NULL) {
+		D("NULL ip, error = %d", error);
+	}
+	if (error) {
+		o = netmap_interp_error(pool, "error: %d", error);
+		goto out;
+	}
+	e->have_ref = 1;
+out:
+	*pn = o;
+	return e;
+}
+
+
+
+static struct _jpo
 netmap_interp_list_interp(struct netmap_interp *ip, struct _jpo r, char *pool)
 {
 	struct _jpo *po;
@@ -600,20 +654,32 @@ netmap_interp_list_interp(struct netmap_interp *ip, struct _jpo r, char *pool)
 	for (i = 0; i < len; i++) {
 		struct _jpo r1;
 		if (ty == JPO_OBJECT) {
-			const char *name = jslr_get_string(pool, *po++);
-			struct netmap_interp *si;
+			const char *name = jslr_get_string(pool, *po);
+			struct netmap_interp_list_elem *e;
 
 			if (name == NULL) {
 				r = netmap_interp_error(pool, "internal error");
 				goto out;
 			}
-			si = netmap_interp_list_search(il, name);
-			if (si == NULL) {
-				r1 = netmap_interp_error(pool, "%s: not found", name);
+			if (strcmp(name, "new") == 0) {
+				e = netmap_interp_list_new(il, &r1, pool);
+				if (e == NULL)
+					goto next;
+				*po = jslr_new_string(pool, e->name);
+			} else {
+				e = netmap_interp_list_search(il, name);
+				if (e == NULL) {
+					r1 = netmap_interp_error(pool, "%s: not found", name);
+					goto next;
+				}
+			}
+			po++;
+			D("found %s", name);
+			if (netmap_interp_streq(*po, pool, "delete")) {
+				r1 = netmap_interp_list_delete(il, e, pool);
 				goto next;
 			}
-			D("found %s", name);
-			r1 = netmap_interp_interp(si, *po, pool);
+			r1 = netmap_interp_interp(e->ip, *po, pool);
 		} else {
 			r1 = netmap_interp_list_interp(ip, *po, pool);
 		}
@@ -708,16 +774,11 @@ netmap_interp_list_elem_fill(struct netmap_interp_list_elem *e,
 	return 0;
 }
 
-int
-netmap_interp_list_del(struct netmap_interp_list *il, struct netmap_interp *ip)
+static int
+_netmap_interp_list_del(struct netmap_interp_list *il, struct netmap_interp_list_elem *e1)
 {
-	struct netmap_interp_list_elem *e1, *e2;
+	struct netmap_interp_list_elem *e2;
 
-	for (e1 = il->list; e1 != il->list + il->nextfree; e1++)
-		if (e1->ip == ip)
-			goto found;
-	return ENOENT;
-found:
 	il->nextfree--;
 	e2 = &il->list[il->nextfree];
 	if (e1 != e2) {
@@ -741,7 +802,21 @@ found:
 	return 0;
 }
 
-struct netmap_interp *
+int
+netmap_interp_list_del(struct netmap_interp_list *il, struct netmap_interp *ip)
+{
+	struct netmap_interp_list_elem *e;
+
+	for (e = il->list; e != il->list + il->nextfree; e++)
+		if (e->ip == ip)
+			goto found;
+	return ENOENT;
+found:
+	return _netmap_interp_list_del(il, e);
+}
+
+
+static struct netmap_interp_list_elem *
 netmap_interp_list_search(struct netmap_interp_list *il, const char *name)
 {
 	int i;
@@ -752,7 +827,7 @@ netmap_interp_list_search(struct netmap_interp_list *il, const char *name)
 	}
 	if (i == il->nextfree)
 		return NULL;
-	return il->list[i].ip;
+	return &il->list[i];
 }
 
 static int64_t
