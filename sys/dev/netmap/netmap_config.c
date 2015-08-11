@@ -558,15 +558,15 @@ netmap_interp_is_dump(struct _jpo r, char *pool)
 static struct _jpo
 netmap_interp_interp(struct netmap_interp *ip, struct _jpo r, char *pool)
 {
-	if (ip->lock)
-		ip->lock(ip, 1);
+	if (ip->bracket)
+		ip->bracket(ip, 1);
 	if (netmap_interp_is_dump(r, pool)) {
 		r = ip->dump(ip, pool);
 	} else {
 		r = ip->interp(ip, r, pool);
 	}
-	if (ip->lock)
-		ip->lock(ip, 0);
+	if (ip->bracket)
+		ip->bracket(ip, 0);
 	return r;
 }
 
@@ -575,11 +575,11 @@ netmap_interp_dump(struct netmap_interp *ip, char *pool)
 {
 	struct _jpo r;
 
-	if (ip->lock)
-		ip->lock(ip, 1);
+	if (ip->bracket)
+		ip->bracket(ip, 1);
 	r = ip->dump(ip, pool);
-	if (ip->lock)
-		ip->lock(ip, 0);
+	if (ip->bracket)
+		ip->bracket(ip, 0);
 	return r;
 }
 

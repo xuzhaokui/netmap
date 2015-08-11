@@ -316,13 +316,14 @@ netmap_mem_interp_uninit(struct netmap_mem_d *nmd)
 }
 
 static void
-netmap_mem_interp_lock(struct netmap_interp *i, int lock)
+netmap_mem_interp_bracket(struct netmap_interp *i, int enter)
 {
 	struct netmap_interp_list *il = (struct netmap_interp_list *)i;
 	struct netmap_mem_d *nmd = container_of(il, struct netmap_mem_d, ip);
 
-	if (lock) {
+	if (enter) {
 		NMA_LOCK(nmd);
+		netmap_mem_config(nmd);
 	} else {
 		NMA_UNLOCK(nmd);
 	}
@@ -339,7 +340,7 @@ netmap_mem_interp_init(struct netmap_mem_d *nmd, struct netmap_interp_list_elem 
 	error = netmap_interp_list_init(il, 10);
 	if (error)
 		goto fail;
-	il->up.lock = netmap_mem_interp_lock;
+	il->up.bracket = netmap_mem_interp_bracket;
 	error = NETMAP_INTERP_LIST_ADD_RONUM(il, &nmd->ip_users, nmd->active, "users");
 	if (error)
 		goto fail;
