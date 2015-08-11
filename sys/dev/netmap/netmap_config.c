@@ -663,12 +663,15 @@ netmap_interp_list_interp(struct netmap_interp *ip, struct _jpo r, char *pool)
 			}
 			if (strcmp(name, "new") == 0) {
 				e = netmap_interp_list_new(il, &r1, pool);
-				if (e == NULL)
+				if (e == NULL) {
+					po++;
 					goto next;
+				}
 				*po = jslr_new_string(pool, e->name);
 			} else {
 				e = netmap_interp_list_search(il, name);
 				if (e == NULL) {
+					po++;
 					r1 = netmap_interp_error(pool, "%s: not found", name);
 					goto next;
 				}
