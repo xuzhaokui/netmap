@@ -233,6 +233,7 @@ struct nm_bridge {
 
 #ifdef WITH_NMCONF
 	struct netmap_interp_list ip;
+	struct netmap_interp ip_ports;
 #endif
 };
 
@@ -248,10 +249,41 @@ netmap_bdg_name(struct netmap_vp_adapter *vp)
 #ifdef WITH_NMCONF
 struct netmap_interp_list netmap_interp_bridge;
 
+static struct _jpo
+netmap_bdg_interp_dump(struct netmap_interp *ip, char *pool)
+{
+	struct nm_bridge *b = container_of(ip, struct nm_bridge, ip_ports);
+	int i, len;
+	struct _jpo r, *po;
+
+	BDG_RLOCK(b);
+	len = b->bdg_active_ports;
+	r = jslr_new_array(pool, len);
+	if (r.ty == JPO_ERR)
+		goto out;
+	po = jslr_get_array(pool, r);
+	po++;
+	for (i = 0; i < len; i++) {
+		int j = b->bdg_port_index[i];
+		struct netmap_vp_adapter *vp = b->bdg_ports[j];
+		*po++ = jslr_new_string(pool, vp->up.name); // XXX check errors
+	}
+out:
+	BDG_RUNLOCK(b);
+	return r;
+}
+
+static struct _jpo
+netmap_bdg_interp_interp(struct netmap_interp *ip, struct _jpo r, char *pool)
+{
+	return netmap_bdg_interp_dump(ip, pool);
+}
+
 static void
 netmap_bdg_interp_uninit(struct nm_bridge *b)
 {
 	netmap_interp_list_del(&netmap_interp_bridge, &b->ip.up);
+	netmap_interp_list_del(&b->ip, &b->ip_ports);
 	netmap_interp_list_uninit(&b->ip);
 }
 
@@ -261,6 +293,12 @@ netmap_bdg_interp_init(struct nm_bridge *b)
 	int error;
 
 	error = netmap_interp_list_init(&b->ip, 10);
+	if (error)
+		goto fail;
+	b->ip_ports.dump = netmap_bdg_interp_dump;
+	b->ip_ports.interp = netmap_bdg_interp_interp;
+	b->ip_ports.bracket = NULL;
+	error = netmap_interp_list_add(&b->ip, &b->ip_ports, "ports");
 	if (error)
 		goto fail;
 	error = netmap_interp_list_add(&netmap_interp_bridge, &b->ip.up, b->bdg_basename);
