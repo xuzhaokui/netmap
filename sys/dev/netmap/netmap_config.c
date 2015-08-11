@@ -499,16 +499,9 @@ out:
 	return ret;
 }
 
-#define NM_DEBUG_CONFIG
 
-static struct _jpo
-#ifdef NM_DEBUG_CONFIG
-#define netmap_interp_error(p, fmt, ...)				\
-	_netmap_interp_error(p, "[%d] " fmt, __LINE__, ##__VA_ARGS__)
-_netmap_interp_error(char *pool, const char *format, ...)
-#else /* NM_DEBUG_CONFIG */
+struct _jpo
 netmap_interp_error(char *pool, const char *format, ...)
-#endif /* NM_DEBUF_CONFIG */
 {
 	va_list ap;
 	struct _jpo r, *o;

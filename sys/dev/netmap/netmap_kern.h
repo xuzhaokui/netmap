@@ -287,6 +287,8 @@ struct netmap_interp {
 	void	    (*bracket)(struct netmap_interp *, int enter);
 };
 
+struct _jpo netmap_interp_error(char *pool, const char *fmt, ...);
+
 struct netmap_interp_list_elem {
 #define	NETMAP_CONFIG_MAXNAME	64
 	char name[NETMAP_CONFIG_MAXNAME];
