@@ -759,6 +759,7 @@ done
 # Makefile already exists
 ln -s $SRCDIR/Makefile || true
 ln -s $SRCDIR/drv-subdir.mak || true
+ln -s $SRCDIR/gen-version || true
 
 
 #################################################

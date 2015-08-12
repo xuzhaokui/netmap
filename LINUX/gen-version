@@ -1,0 +1,13 @@
+#!/bin/sh
+
+if [ -f version ]; then
+	VN=$(cat version)
+else
+	VN=$(git describe --tags)
+fi
+
+cat >netmap_version.h <<EOF
+#ifndef NETMAP_VERSION
+#define NETMAP_VERSION "$VN"
+#endif
+EOF

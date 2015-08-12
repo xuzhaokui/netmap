@@ -3249,6 +3249,13 @@ netmap_rx_irq(struct ifnet *ifp, u_int q, u_int *work_done)
 }
 
 #ifdef WITH_NMCONF
+#include "netmap_version.h"
+struct netmap_interp netmap_interp_version;
+static struct _jpo
+netmap_version_dump(struct netmap_interp *ip, char *pool)
+{
+	return jslr_new_string(pool, NETMAP_VERSION);
+}
 struct netmap_interp_list netmap_interp_root;
 struct netmap_interp_list netmap_interp_ports;
 #endif /* WITH_NMCONF */
@@ -3295,7 +3302,12 @@ netmap_init(void)
 	NMG_LOCK_INIT();
 
 #ifdef WITH_NMCONF
-	error = netmap_interp_list_init(&netmap_interp_root, 3);
+	error = netmap_interp_list_init(&netmap_interp_root, 4);
+	if (error)
+		goto fail;
+	netmap_interp_version.dump = netmap_version_dump;
+	error = netmap_interp_list_add(&netmap_interp_root,
+			&netmap_interp_version, "version");
 	if (error)
 		goto fail;
 	error = netmap_interp_list_init(&netmap_interp_ports, 10);
