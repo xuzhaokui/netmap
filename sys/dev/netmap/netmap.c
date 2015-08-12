@@ -1360,6 +1360,7 @@ netmap_get_hw_na(struct ifnet *ifp, struct netmap_adapter **na)
 	if (error)
 		return error;
 
+	// XXX this should all be moved to netmap_generic.c -gl
 	*na = NA(ifp);
 	return 0;
 }
