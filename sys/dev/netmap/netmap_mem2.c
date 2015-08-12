@@ -199,6 +199,7 @@ struct netmap_mem_d {
 
 	u_int flags;
 #define NETMAP_MEM_FINALIZED	0x1	/* preallocation done */
+#define NETMAP_MEM_HIDDEN	0x2	/* beeing prepared */
 	int lasterr;		/* last error for curr config */
 	int active;		/* active users */
 	int refcount;
@@ -316,15 +317,17 @@ netmap_mem_interp_uninit(struct netmap_mem_d *nmd)
 }
 
 static void
-netmap_mem_interp_bracket(struct netmap_interp *i, int enter)
+netmap_mem_interp_bracket(struct netmap_interp *i, int stage)
 {
 	struct netmap_interp_list *il = (struct netmap_interp_list *)i;
 	struct netmap_mem_d *nmd = container_of(il, struct netmap_mem_d, ip);
 
-	if (enter) {
+	if (stage == 0 /* entering */) {
 		NMA_LOCK(nmd);
-		netmap_mem_config(nmd);
-	} else {
+	}
+	netmap_mem_config(nmd);
+	if (stage == 2 /* leaving */) {
+		nmd->flags &= ~NETMAP_MEM_HIDDEN;
 		NMA_UNLOCK(nmd);
 	}
 }
@@ -685,7 +688,8 @@ netmap_mem_find(uint16_t id)
 	NMA_LOCK(&nm_mem);
 	scan = netmap_last_mem_d;
 	do {
-		if (scan->nm_id == id) {
+		if (!(scan->flags & NETMAP_MEM_HIDDEN) &&
+		    scan->nm_id == id) {
 			NMA_UNLOCK(&nm_mem);
 			return scan;
 		}
