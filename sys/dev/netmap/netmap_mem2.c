@@ -306,14 +306,14 @@ netmap_mem_interp_uninit(struct netmap_mem_d *nmd)
 		NETMAP_INTERP_LIST_DEL_NUM(pil, &p->ip_size);
 		NETMAP_INTERP_LIST_DEL_NUM(pil, &p->ip_free);
 		NETMAP_INTERP_LIST_DEL_NUM(pil, &p->ip_total);
-		netmap_interp_list_del(il, &nmd->pools[i].ip.up);
-		netmap_interp_list_uninit(&nmd->pools[i].ip);
+		netmap_interp_list_del(il, &pil->up);
+		netmap_interp_list_uninit(pil);
 	}
 	NETMAP_INTERP_LIST_DEL_NUM(il, &nmd->ip_iogrp);
 	NETMAP_INTERP_LIST_DEL_NUM(il, &nmd->ip_totsize);
 	NETMAP_INTERP_LIST_DEL_NUM(il, &nmd->ip_users);
-	netmap_interp_list_del(&netmap_interp_mem, &nmd->ip.up);
-	netmap_interp_list_uninit(&nmd->ip);
+	netmap_interp_list_del(&netmap_interp_mem, &il->up);
+	netmap_interp_list_uninit(il);
 }
 
 static void
