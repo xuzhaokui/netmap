@@ -560,7 +560,7 @@ static struct _jpo
 netmap_interp_interp(struct netmap_interp *ip, struct _jpo r, char *pool)
 {
 	netmap_interp_bracket(ip, 0);
-	if (netmap_interp_is_dump(r, pool)) {
+	if (netmap_interp_is_dump(r, pool) || ip->interp == NULL) {
 		r = ip->dump(ip, pool);
 	} else {
 		r = ip->interp(ip, r, pool);
