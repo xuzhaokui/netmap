@@ -336,7 +336,7 @@ netmap_mem_interp_init(struct netmap_mem_d *nmd, struct netmap_interp_list_elem 
 	struct netmap_interp_list *il = &nmd->ip;
 	static const char *names[] = { "if", "ring", "buf" };
 
-	snprintf(nmd->name, NM_MEM_NAMESZ, "%d", nmd->nm_id);
+	snprintf(nmd->name, NM_MEM_NAMESZ, "m%d", nmd->nm_id);
 	error = netmap_interp_list_init(il, 10);
 	if (error)
 		goto fail;
@@ -588,7 +588,7 @@ static const struct netmap_mem_d nm_blueprint = {
 
 	.flags = NETMAP_MEM_PRIVATE,
 
-	.ops = &netmap_mem_private_ops
+	.ops = &netmap_mem_global_ops,
 };
 
 /* memory allocator related sysctls */
@@ -1590,16 +1590,6 @@ netmap_mem_private_delete(struct netmap_mem_d *nmd)
 	free(nmd, M_DEVBUF);
 }
 
-static void
-netmap_mem_private_deref(struct netmap_mem_d *nmd)
-{
-	NMA_LOCK(nmd);
-	if (--nmd->active <= 0)
-		netmap_mem_reset_all(nmd);
-	NMA_UNLOCK(nmd);
-}
-
-
 /*
  * allocator for private memory
  */
@@ -2090,20 +2080,6 @@ struct netmap_mem_ops netmap_mem_global_ops = {
 	.nmd_deref = netmap_mem_global_deref,
 	.nmd_delete = netmap_mem_global_delete,
 	.nmd_if_offset = netmap_mem2_if_offset,
-	.nmd_if_new = netmap_mem2_if_new,
-	.nmd_if_delete = netmap_mem2_if_delete,
-	.nmd_rings_create = netmap_mem2_rings_create,
-	.nmd_rings_delete = netmap_mem2_rings_delete
-};
-struct netmap_mem_ops netmap_mem_private_ops = {
-	.nmd_get_lut = netmap_mem2_get_lut,
-	.nmd_get_info = netmap_mem2_get_info,
-	.nmd_ofstophys = netmap_mem2_ofstophys,
-	.nmd_config = netmap_mem2_config,
-	.nmd_finalize = netmap_mem2_finalize,
-	.nmd_deref = netmap_mem_private_deref,
-	.nmd_if_offset = netmap_mem2_if_offset,
-	.nmd_delete = netmap_mem_private_delete,
 	.nmd_if_new = netmap_mem2_if_new,
 	.nmd_if_delete = netmap_mem2_if_delete,
 	.nmd_rings_create = netmap_mem2_rings_create,
