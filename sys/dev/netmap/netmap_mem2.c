@@ -2064,7 +2064,7 @@ netmap_mem2_if_delete(struct netmap_adapter *na, struct netmap_if *nifp)
 }
 
 static void
-netmap_mem_global_deref(struct netmap_mem_d *nmd)
+netmap_mem2_deref(struct netmap_mem_d *nmd)
 {
 
 	nmd->active--;
@@ -2081,7 +2081,7 @@ struct netmap_mem_ops netmap_mem_global_ops = {
 	.nmd_ofstophys = netmap_mem2_ofstophys,
 	.nmd_config = netmap_mem2_config,
 	.nmd_finalize = netmap_mem2_finalize,
-	.nmd_deref = netmap_mem_global_deref,
+	.nmd_deref = netmap_mem2_deref,
 	.nmd_delete = netmap_mem2_delete,
 	.nmd_if_offset = netmap_mem2_if_offset,
 	.nmd_if_new = netmap_mem2_if_new,
