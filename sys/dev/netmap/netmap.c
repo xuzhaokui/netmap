@@ -2768,6 +2768,8 @@ netmap_interp_port_init(struct netmap_adapter *na)
 	if (error)
 		goto fail;
 	error = netmap_interp_list_add(il, &na->ip_mem.up, "mem");
+	if (error)
+		goto fail;
 	error = netmap_interp_list_init(&na->ring_ip, 10);
 	if (error)
 		goto fail;
