@@ -1791,7 +1791,7 @@ out1:
 }
 
 static void
-netmap_mem_global_delete(struct netmap_mem_d *nmd)
+netmap_mem2_delete(struct netmap_mem_d *nmd)
 {
 	int i;
 
@@ -1802,7 +1802,7 @@ netmap_mem_global_delete(struct netmap_mem_d *nmd)
 	    netmap_destroy_obj_allocator(&nm_mem.pools[i]);
 	}
 
-	NMA_LOCK_DESTROY(&nm_mem);
+	NMA_LOCK_DESTROY(nmd);
 }
 
 #ifdef WITH_NMCONF
@@ -2082,7 +2082,7 @@ struct netmap_mem_ops netmap_mem_global_ops = {
 	.nmd_config = netmap_mem2_config,
 	.nmd_finalize = netmap_mem2_finalize,
 	.nmd_deref = netmap_mem_global_deref,
-	.nmd_delete = netmap_mem_global_delete,
+	.nmd_delete = netmap_mem2_delete,
 	.nmd_if_offset = netmap_mem2_if_offset,
 	.nmd_if_new = netmap_mem2_if_new,
 	.nmd_if_delete = netmap_mem2_if_delete,
