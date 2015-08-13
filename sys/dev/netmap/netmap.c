@@ -2638,6 +2638,10 @@ netmap_interp_port_uninit(struct netmap_adapter *na)
 {
 	struct netmap_interp_list *il = &na->ip;
 
+	NETMAP_INTERP_LIST_DEL_NUM(il, &na->ip_num_tx_rings);
+	NETMAP_INTERP_LIST_DEL_NUM(il, &na->ip_num_rx_rings);
+	NETMAP_INTERP_LIST_DEL_NUM(il, &na->ip_num_tx_desc);
+	NETMAP_INTERP_LIST_DEL_NUM(il, &na->ip_num_rx_desc);
 	NETMAP_INTERP_LIST_DEL_NUM(il, &na->ip_mem);
 	NETMAP_INTERP_LIST_DEL_NUM(il, &na->ip_users);
 	netmap_interp_list_del(il, &na->ip_flags);
@@ -2775,6 +2779,22 @@ netmap_interp_port_init(struct netmap_adapter *na)
 		goto fail;
 	na->ip_flags.dump = netmap_interp_flags_dump;
 	error = netmap_interp_list_add(il, &na->ip_flags, "flags");
+	if (error)
+		goto fail;
+	error = NETMAP_INTERP_LIST_ADD_RONUM(il, &na->ip_num_tx_rings,
+			na->num_tx_rings, "num-tx-rings");
+	if (error)
+		goto fail;
+	error = NETMAP_INTERP_LIST_ADD_RONUM(il, &na->ip_num_rx_rings,
+			na->num_rx_rings, "num-rx-rings");
+	if (error)
+		goto fail;
+	error = NETMAP_INTERP_LIST_ADD_RONUM(il, &na->ip_num_tx_desc,
+			na->num_tx_desc, "num-tx-desc");
+	if (error)
+		goto fail;
+	error = NETMAP_INTERP_LIST_ADD_RONUM(il, &na->ip_num_rx_desc,
+			na->num_rx_desc, "num-rx-desc");
 	if (error)
 		goto fail;
 	error = netmap_interp_list_add(il, &na->ring_ip.up, "rings");

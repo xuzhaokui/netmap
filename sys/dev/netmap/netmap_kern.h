@@ -874,6 +874,10 @@ struct netmap_adapter {
 	struct netmap_interp_num ip_users;
 	struct netmap_interp_num ip_mem;
 	struct netmap_interp ip_flags;
+	struct netmap_interp_num ip_num_tx_rings;
+	struct netmap_interp_num ip_num_rx_rings;
+	struct netmap_interp_num ip_num_tx_desc;
+	struct netmap_interp_num ip_num_rx_desc;
 #endif
 };
 
