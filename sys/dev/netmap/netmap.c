@@ -2640,6 +2640,7 @@ netmap_interp_port_uninit(struct netmap_adapter *na)
 
 	NETMAP_INTERP_LIST_DEL_NUM(il, &na->ip_mem);
 	NETMAP_INTERP_LIST_DEL_NUM(il, &na->ip_users);
+	netmap_interp_list_del(il, &na->ip_flags);
 	netmap_interp_list_del(il, &na->ring_ip.up);
 	netmap_interp_list_uninit(&na->ring_ip);
 	netmap_interp_list_del(&netmap_interp_ports, &il->up);
@@ -2658,6 +2659,71 @@ netmap_interp_memid_read(struct netmap_interp_num *in)
 	if (netmap_mem_get_info(na->nm_mem, NULL, NULL, &memid))
 		return 0;
 	return memid;
+}
+
+static struct _jpo
+netmap_interp_flags_dump(struct netmap_interp *ip, char *pool)
+{
+	struct netmap_adapter *na =
+		container_of(ip, struct netmap_adapter, ip_flags);
+	uint32_t f, flags;
+	struct _jpo r, *po;
+	int len = 0;
+
+	for (flags = na->na_flags; flags; flags >>= 1)
+		if (flags & 1)
+			len++;
+	r = jslr_new_array(pool, len);
+	if (r.ty == JPO_ERR)
+		return r;
+	po = jslr_get_array(pool, r);
+	po++;
+	for (flags = na->na_flags, f = 1U; flags; flags &= ~f, f <<= 1) {
+		const char *fs;
+
+		if (!(flags & f))
+			continue;
+		switch (f) {
+		case NAF_SKIP_INTR:
+			fs = "skip-intr";
+			break;
+		case NAF_SW_ONLY:
+			fs = "sw-only";
+			break;
+		case NAF_BDG_MAYSLEEP:
+			fs = "bdg-maysleep";
+			break;
+		case NAF_MEM_OWNER:
+			fs = "mem-owner";
+			break;
+		case NAF_NATIVE:
+			fs = "native";
+			break;
+		case NAF_NETMAP_ON:
+			fs = "netmap-on";
+			break;
+		case NAF_HOST_RINGS:
+			fs = "host-rings";
+			break;
+		case NAF_FORCE_NATIVE:
+			fs = "force-native";
+			break;
+		case NAF_PTNETMAP_HOST:
+			fs = "ptnemtap-host";
+			break;
+		case NAF_BUSY:
+			fs = "busy";
+			break;
+		default:
+			fs = "unknown";
+			break;
+		}
+		*po = jslr_new_string(pool, fs);
+		if (po->ty == JPO_ERR)
+			break;
+		po++;
+	}
+	return r;
 }
 
 static int
@@ -2703,6 +2769,10 @@ netmap_interp_port_init(struct netmap_adapter *na)
 		goto fail;
 	error = netmap_interp_list_add(il, &na->ip_mem.up, "mem");
 	error = netmap_interp_list_init(&na->ring_ip, 10);
+	if (error)
+		goto fail;
+	na->ip_flags.dump = netmap_interp_flags_dump;
+	error = netmap_interp_list_add(il, &na->ip_flags, "flags");
 	if (error)
 		goto fail;
 	error = netmap_interp_list_add(il, &na->ring_ip.up, "rings");
