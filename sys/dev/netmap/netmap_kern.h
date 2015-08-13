@@ -949,6 +949,11 @@ struct netmap_vp_adapter {	/* VALE software port */
 	u_int mfs;
 	/* Last source MAC on this port */
 	uint64_t last_smac;
+
+#ifdef WITH_NMCONF
+	struct netmap_interp_num ip_virt_hdr_len;
+	struct netmap_interp_num ip_mfs;
+#endif
 };
 
 
