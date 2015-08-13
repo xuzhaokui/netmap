@@ -25,11 +25,34 @@ int curr_var;
 
 char *firstarg(char *buf)
 {
+	static char *ptr;
 	int v;
-	char *arg = strtok(buf, " \t\n");
+	char *arg;
 	char *ret;
-	if (!arg)
+
+	if (buf)
+		ptr = buf;
+	while (*ptr && isspace(*ptr))
+		ptr++;
+	if (!*ptr)
 		return NULL;
+	arg = ptr;
+	if (*arg == '\'') {
+		arg++;
+		ptr++;
+		while (*ptr && *ptr != '\'')
+			ptr++;
+		if (*ptr != '\'') {
+			printf("unterminated quoted string\n");
+			return NULL;
+		}
+		*ptr = '\0';
+		return arg;
+	}
+	while (*ptr && !isspace(*ptr))
+		ptr++;
+	if (*ptr)
+		*ptr++ = '\0';
 	if (arg[0] != '$' && arg[0] != '?')
 		return arg;
 	v = atoi(arg+1);
