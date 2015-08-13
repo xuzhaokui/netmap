@@ -44,6 +44,7 @@
 #include <machine/bus.h>	/* bus_dmamap_* */
 #include <sys/refcount.h>
 #include <sys/uio.h>
+#include <machine/stdarg.h>
 
 
 #elif defined(linux)
@@ -160,11 +161,11 @@ netmap_confbuf_post_write(struct netmap_confbuf *cb, u_int size)
 
 }
 
-int
+static int
 netmap_confbuf_printf(struct netmap_confbuf *cb, const char *format, ...)
 {
 	va_list ap;
-	size_t rv;
+	int rv;
         u_int size = 64, *psz = &size;
 	void *p;
 
@@ -177,7 +178,7 @@ netmap_confbuf_printf(struct netmap_confbuf *cb, const char *format, ...)
 		va_end(ap);
 		if (rv < size)
 			break;
-		D("rv %zd size %u: retry", rv, size);
+		D("rv %d size %u: retry", rv, size);
 		size = rv + 1;
 		psz = NULL;
 	}

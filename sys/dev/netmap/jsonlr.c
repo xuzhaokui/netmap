@@ -7,6 +7,10 @@
 
 #include <sys/types.h>
 #include <sys/errno.h>
+#include <sys/selinfo.h>
+#include <sys/socket.h>
+#include <net/if.h>
+#include <machine/bus.h>
 
 #elif defined(linux)
 

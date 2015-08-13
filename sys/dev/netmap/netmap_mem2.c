@@ -402,7 +402,7 @@ fail:
 	return error;
 }
 
-int
+static int
 netmap_mem_interp_add(struct netmap_mem_d *nmd)
 {
 	struct netmap_interp_list_elem *e;
@@ -1597,7 +1597,7 @@ netmap_mem_private_delete(struct netmap_mem_d *nmd)
 /*
  * allocator for private memory
  */
-struct netmap_mem_d *
+static struct netmap_mem_d *
 _netmap_mem_private_new(struct netmap_obj_params *p, int *perr)
 {
 	struct netmap_mem_d *d = NULL;

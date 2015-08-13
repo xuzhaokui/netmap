@@ -83,6 +83,7 @@
 #define likely(x)	__builtin_expect((long)!!(x), 1L)
 #define unlikely(x)	__builtin_expect((long)!!(x), 0L)
 #define __user
+#define container_of(p, t, f)	((t*)((char *)(p)-offsetof(t, f)))
 
 #define	NM_LOCK_T	struct mtx	/* low level spinlock, used to protect queues */
 

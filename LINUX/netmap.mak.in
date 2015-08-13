@@ -108,6 +108,7 @@ distclean: clean
 	rm -f config.status config.log netmap_linux_config.h \
 		patches drivers.mak Kbuild netmap.mak
 	rm -rf netmap-tmpdir
+	rm -f gen-version
 	if [ -L Makefile ]; then rm Makefile; fi
 	if [ -L drv-subdir.mak ]; then rm drv-subdir.mak; fi
 	rm -rf build-apps
