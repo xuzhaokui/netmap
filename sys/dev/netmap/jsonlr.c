@@ -130,7 +130,26 @@ jslr_push(struct _jp *p, const char *src, uint32_t l)
 	for (i = 0; i < l; i++)
 		dst[i] = src[i];
 	return p->pool_tail;
-	return 0;
+}
+
+static int32_t
+jslr_vspushf(struct _jp *p, const char *fmt, va_list ap)
+{
+	char *dst = (char *)p->pool;
+	int s, n;
+
+	s = p->pool_next * sizeof(struct _jpo) - p->pool_tail;
+	if (s < 1) {
+		D("no space in stack");
+		return -1;
+	}
+	n = vsnprintf(dst + p->pool_tail, s - 1, fmt, ap);
+	if (n < 0 || n >= s) {
+		D("no space in stack");
+		return -1;
+	}
+	p->pool_tail += n + 1;
+	return p->pool_tail;
 }
 	
 
@@ -256,10 +275,18 @@ jslr_dot(struct _jp *p)
 	s->consume(s);
 
 	ro->len = 1;
-	/* wait for string */
+	/* wait for string or number */
 	x = jslr_1(p);
-	if (x.ty != JPO_STRING)
+	if (x.ty != JPO_STRING && x.ty != JPO_NUM)
 		return _r_EINVAL;
+	if (x.ty == JPO_NUM) {
+		int64_t n;
+		D("got num, (%d, %d, %d)", x.ty, x.ptr, x.len);
+	        n = jslr_get_num((const char *)p, x);
+		x = jslr_new_string((char *)p, "%ld", n);
+		if (x.ty == JPO_ERR)
+			return x;
+	}
 	*rn = x;
 	/* wait for either :/= or dot */
 	x = jslr_1(p);
@@ -578,15 +605,17 @@ jslr_get_object(const char *pool, struct _jpo r)
 }
 
 struct _jpo
-jslr_new_string(char *pool, const char *string)
+jslr_new_string(char *pool, const char *fmt, ...)
 {
 	struct _jp *p = (struct _jp *)pool;
-	int start = p->pool_tail, end;
-	int len = strlen(string);
+	int32_t start = p->pool_tail, end;
+	va_list ap;
 
-	end = jslr_push(p, string, len + 1);
+	va_start(ap, fmt);
+	end = jslr_vspushf(p, fmt, ap);
+	va_end(ap);
 	return (end < 0 ? _r_ENOMEM :
-			(struct _jpo) {.ty = JPO_STRING, .len = len, .ptr = start});
+			(struct _jpo) {.ty = JPO_STRING, .len = (end - start), .ptr = start});
 }
 
 struct _jpo

@@ -339,7 +339,7 @@ netmap_mem_interp_init(struct netmap_mem_d *nmd, struct netmap_interp_list_elem 
 	struct netmap_interp_list *il = &nmd->ip;
 	static const char *names[] = { "if", "ring", "buf" };
 
-	snprintf(nmd->name, NM_MEM_NAMESZ, "m%d", nmd->nm_id);
+	snprintf(nmd->name, NM_MEM_NAMESZ, "%d", nmd->nm_id);
 	error = netmap_interp_list_init(il, 10);
 	if (error)
 		goto fail;

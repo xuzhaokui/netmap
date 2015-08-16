@@ -56,7 +56,7 @@ const char *	jslr_get_string(const char *pool, struct _jpo);
 int64_t		jslr_get_num(const char *pool, struct _jpo);
 struct _jpo*	jslr_get_array(const char *pool, struct _jpo);
 struct _jpo*	jslr_get_object(const char *pool, struct _jpo);
-struct _jpo	jslr_new_string(char *pool, const char *);
+struct _jpo	jslr_new_string(char *pool, const char *fmt, ...);
 struct _jpo	jslr_new_num(char *pool, int64_t);
 struct _jpo	jslr_new_array(char *pool, int n);
 struct _jpo	jslr_new_object(char *pool, int n);
