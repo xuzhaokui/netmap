@@ -298,15 +298,14 @@ static int netmap_config_dump_json(const char *pool, struct _jpo*,
 		struct netmap_confbuf *);
 static int netmap_config_dump_flat(const char *pool, struct _jpo*,
 		struct netmap_confbuf *);
+extern int netmap_config_flat_mode;
 void
 netmap_config_init(struct netmap_config *c)
 {
 	NM_MTX_INIT(c->mux);
-#if 0
-	c->dump = netmap_config_dump_json;
-#else
-	c->dump = netmap_config_dump_flat;
-#endif
+	c->dump = (netmap_config_flat_mode ?
+	           netmap_config_dump_flat :
+		   netmap_config_dump_json);
 }
 
 void

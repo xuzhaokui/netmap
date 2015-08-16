@@ -492,6 +492,10 @@ int netmap_adaptive_io = 0;
 int netmap_flags = 0;	/* debug flags */
 static int netmap_fwd = 0;	/* force transparent mode */
 
+#ifdef WITH_NMCONF
+int netmap_config_flat_mode = 0;
+#endif
+
 /*
  * netmap_admode selects the netmap mode to use.
  * Invalid values are reset to NETMAP_ADMODE_BEST
@@ -532,6 +536,10 @@ SYSCTL_INT(_dev_netmap, OID_AUTO, admode, CTLFLAG_RW, &netmap_admode, 0 , "");
 SYSCTL_INT(_dev_netmap, OID_AUTO, generic_mit, CTLFLAG_RW, &netmap_generic_mit, 0 , "");
 SYSCTL_INT(_dev_netmap, OID_AUTO, generic_ringsize, CTLFLAG_RW, &netmap_generic_ringsize, 0 , "");
 SYSCTL_INT(_dev_netmap, OID_AUTO, generic_rings, CTLFLAG_RW, &netmap_generic_rings, 0 , "");
+
+#ifdef WITH_NMCONF
+SYSCTL_INT(_dev_netmap, OID_AUTO, confmode, CTLFLAG_RW, &netmap_config_flat_mode, 0 , "");
+#endif
 
 SYSEND;
 
@@ -3348,6 +3356,13 @@ netmap_version_dump(struct netmap_interp *ip, char *pool)
 {
 	return jslr_new_string(pool, NETMAP_VERSION);
 }
+struct netmap_interp netmap_interp_mode;
+static struct _jpo
+netmap_interp_mode_dump(struct netmap_interp *ip, char *pool)
+{
+	return jslr_new_string(pool,
+			netmap_config_flat_mode ? "flat" : "json");
+}
 struct netmap_interp_list netmap_interp_root;
 struct netmap_interp_list netmap_interp_ports;
 #endif /* WITH_NMCONF */
@@ -3400,6 +3415,11 @@ netmap_init(void)
 	netmap_interp_version.dump = netmap_version_dump;
 	error = netmap_interp_list_add(&netmap_interp_root,
 			&netmap_interp_version, "version");
+	if (error)
+		goto fail;
+	netmap_interp_mode.dump = netmap_interp_mode_dump;
+	error = netmap_interp_list_add(&netmap_interp_root,
+			&netmap_interp_mode, "output-mode");
 	if (error)
 		goto fail;
 	error = netmap_interp_list_init(&netmap_interp_ports, 10);
