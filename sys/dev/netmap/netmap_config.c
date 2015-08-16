@@ -753,12 +753,12 @@ netmap_interp_list_interp(struct netmap_interp *ip, struct _jpo r, char *pool)
 	int i, len, ty = r.len;
 	struct netmap_interp_list *il = (struct netmap_interp_list *)ip;
 
-	if (r.ty != JPO_PTR || (ty != JPO_OBJECT && ty != JPO_ARRAY)) {
-		r = netmap_interp_error(pool, "need object or array");
+	if (r.ty != JPO_PTR || ty != JPO_OBJECT) {
+		r = netmap_interp_error(pool, "need object");
 		goto out;
 	}
 
-	po = (ty == JPO_OBJECT ? jslr_get_object(pool, r) : jslr_get_array(pool, r));
+	po = jslr_get_object(pool, r);
 	if (po == NULL || po->ty != ty) {
 		r = netmap_interp_error(pool, "internal error");
 		goto out;
@@ -768,35 +768,31 @@ netmap_interp_list_interp(struct netmap_interp *ip, struct _jpo r, char *pool)
 	po++;
 	for (i = 0; i < len; i++) {
 		struct _jpo r1;
-		if (ty == JPO_OBJECT) {
-			const char *name = jslr_get_string(pool, *po);
-			struct netmap_interp_list_elem *e;
+		const char *name = jslr_get_string(pool, *po);
+		struct netmap_interp_list_elem *e;
 
-			if (name == NULL) {
-				r = netmap_interp_error(pool, "internal error");
-				goto out;
-			}
-			if (strcmp(name, "new") == 0) {
-				r1 = netmap_interp_list_new(il, po, pool);
-				po++;
-				goto next;
-			}
-			e = netmap_interp_list_search(il, name);
-			if (e == NULL) {
-				po++;
-				r1 = netmap_interp_error(pool, "%s: not found", name);
-				goto next;
-			}
-			po++;
-			D("found %s", name);
-			if (netmap_interp_streq(*po, pool, "delete")) {
-				r1 = netmap_interp_list_delete(il, e, pool);
-				goto next;
-			}
-			r1 = netmap_interp_interp(e->ip, *po, pool);
-		} else {
-			r1 = netmap_interp_list_interp(ip, *po, pool);
+		if (name == NULL) {
+			r = netmap_interp_error(pool, "internal error");
+			goto out;
 		}
+		if (strcmp(name, "new") == 0) {
+			r1 = netmap_interp_list_new(il, po, pool);
+			po++;
+			goto next;
+		}
+		e = netmap_interp_list_search(il, name);
+		if (e == NULL) {
+			po++;
+			r1 = netmap_interp_error(pool, "%s: not found", name);
+			goto next;
+		}
+		po++;
+		D("found %s", name);
+		if (netmap_interp_streq(*po, pool, "delete")) {
+			r1 = netmap_interp_list_delete(il, e, pool);
+			goto next;
+		}
+		r1 = netmap_interp_interp(e->ip, *po, pool);
 	next:
 		*po++ = r1;
 	}
