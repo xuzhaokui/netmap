@@ -296,11 +296,17 @@ netmap_confbuf_destroy(struct netmap_confbuf *cb)
 
 static int netmap_config_dump_json(const char *pool, struct _jpo*,
 		struct netmap_confbuf *);
+static int netmap_config_dump_flat(const char *pool, struct _jpo*,
+		struct netmap_confbuf *);
 void
 netmap_config_init(struct netmap_config *c)
 {
 	NM_MTX_INIT(c->mux);
+#if 0
 	c->dump = netmap_config_dump_json;
+#else
+	c->dump = netmap_config_dump_flat;
+#endif
 }
 
 void
@@ -397,6 +403,95 @@ netmap_config_dump_json(const char *pool, struct _jpo* r,
 	return 0;
 }
 
+struct nm_flat_prefix {
+	char *base;
+	char *append;
+	size_t avail;
+};
+
+static int
+nm_flat_prefix_append(struct nm_flat_prefix *st, const char *fmt, ...)
+{
+	int n;
+	va_list ap;
+
+	va_start(ap, fmt);
+	n = vsnprintf(st->append, st->avail, fmt, ap);
+	va_end(ap);
+	if (n < 0 || n >= st->avail)
+		return ENOMEM;
+	st->append += n;
+	st->avail -= n;
+	return 0;
+}
+
+static int
+netmap_config_dump_flat_rec(const char *pool, struct _jpo *r,
+		struct netmap_confbuf *out, const struct nm_flat_prefix *st)
+{
+	int i, error = 0;
+	struct nm_flat_prefix lst;
+again:
+	switch (r->ty) {
+	case JPO_NUM:
+		return netmap_confbuf_printf(out, "%s: %ld\n",
+				st->base, jslr_get_num(pool, *r));
+		break;
+	case JPO_STRING:
+		return netmap_confbuf_printf(out, "%s: \"%s\"\n",
+				st->base, jslr_get_string(pool, *r));
+		break;
+	case JPO_ARRAY:
+		for (i = 0; !error && i < r->len; i++) {
+			lst = *st;
+			error = nm_flat_prefix_append(&lst, ".%d", i);
+			if (!error)
+				error = netmap_config_dump_flat_rec(pool, r + 1 + i,
+					out, &lst);
+		}
+		break;
+	case JPO_OBJECT:
+		for (i = 0; !error && (i < 2 * r->len); i += 2) {
+			lst = *st;
+			error = nm_flat_prefix_append(&lst, ".%s",
+					jslr_get_string(pool, *(r + 1 + i)));
+			if (!error)
+				error = netmap_config_dump_flat_rec(pool, r + 2 + i,
+					out, &lst);
+		}
+		break;
+	case JPO_PTR:
+		switch (r->len) {
+		case JPO_ARRAY:
+			r = jslr_get_array(pool, *r);
+			break;
+		case JPO_OBJECT:
+			r = jslr_get_object(pool, *r);
+			break;
+		default:
+			return EINVAL;
+		}
+		goto again;
+	default:
+		error = EINVAL;
+		break;
+	}
+	return error;
+}
+
+static int
+netmap_config_dump_flat(const char *pool, struct _jpo *r,
+		struct netmap_confbuf *cb)
+{
+	char buf[128];
+	struct nm_flat_prefix lst = {
+		.base = buf,
+		.append = buf,
+		.avail = 128
+	};
+
+	return netmap_config_dump_flat_rec(pool, r, cb, &lst);
+}
 
 #define NETMAP_CONFIG_POOL_SIZE (1<<12)
 
