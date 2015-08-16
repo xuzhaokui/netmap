@@ -12,7 +12,8 @@ enum _jpo_type {
 	JPO_STRING,
 	JPO_ARRAY,
 	JPO_OBJECT,
-	JPO_PTR
+	JPO_PTR,
+	JPO_DOT
 };
 
 /* JPO_MISC values */

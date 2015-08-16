@@ -33,6 +33,7 @@
 #include "jsonlr.h"
 
 #define JSLR_SLOPPY
+#define JSLR_DOT
 
 struct _jp {
 	/* fields used during the parse phase */
@@ -236,30 +237,45 @@ jslr_unquoted_string(struct _jp *p)
 	if (jslr_push(p, "\0", 1) < 0)
 		return _r_ENOMEM;
 	r = (struct _jpo) { .ty = JPO_STRING, .ptr = start, .len = (end - start)};
-	jslr_space(p);
-	c = s->peek(s);
-	if (c == '.' || (c == ':' && p->indot) ) {
-		/* dot notation extension */
-		struct _jpo *rp = jslr_alloc(p, _r_EINVAL),
-			    *rn = jslr_alloc(p, r),
-			    *ro = jslr_alloc(p, _r_OBJECT), x;
-		if (rp == NULL || rn == NULL || ro == NULL)
-			return _r_ENOMEM;
-		ro->len = 1;
-		s->consume(s); /* consume the dot */
-		p->indot++;
-		x = jslr_1(p);
-		p->indot--;
-		if (x.ty > JPO_CHAR) {
-			*rp = x;
-			r = (struct _jpo) { .ty = JPO_PTR, .ptr = (ro - p->pool), .len = JPO_OBJECT };
-		} else {
-			r = _r_EINVAL;
-		}
-
-	}
 	ND("STRING \"%.*s\"", c, p->buf + start);
 	return r;
+}
+
+static struct _jpo
+jslr_dot(struct _jp *p)
+{
+	struct _jpo *rp = jslr_alloc(p, _r_EINVAL),
+		    *rn = jslr_alloc(p, _r_EINVAL),
+		    *ro = jslr_alloc(p, _r_OBJECT), x;
+	struct _jp_stream *s = p->stream;
+
+	if (rp == NULL || rn == NULL || ro == NULL)
+		return _r_ENOMEM;
+
+	/* consume the dot */
+	s->consume(s);
+
+	ro->len = 1;
+	/* wait for string */
+	x = jslr_1(p);
+	if (x.ty != JPO_STRING)
+		return _r_EINVAL;
+	*rn = x;
+	/* wait for either :/= or dot */
+	x = jslr_1(p);
+	if (x.ty == JPO_PTR && x.len == JPO_DOT) {
+		x.len = JPO_OBJECT;
+		goto out;
+	}
+	if (x.ty != JPO_CHAR || (x.ptr != ':' && x.ptr != '='))
+		return _r_EINVAL;
+	/* wait for object (not dot) */
+	x = jslr_1(p);
+	if (x.ty <= JPO_CHAR || (x.ty == JPO_PTR && x.len == JPO_PTR))
+		return _r_EINVAL;
+out:
+	*rp = x;
+	return (struct _jpo) { .ty = JPO_PTR, .ptr = (ro - p->pool), .len = JPO_DOT };
 }
 
 /*
@@ -327,13 +343,18 @@ jslr_object(struct _jp *p)
 			} else {
 				return _r_EINVAL;
 			}
-		} else if (state == 1) { /* need : */
+		} else if (state == 1) { /* need : or dot */
 			if (x.ty == JPO_CHAR && x.ptr == ':') {
 				state = 2; /* wait for object */
+			} else if (x.ty == JPO_PTR && x.len == JPO_DOT) {
+				state = 2;
+				x.len = JPO_OBJECT;
+				goto obj;
 			} else {
 				return _r_EINVAL;
 			}
 		} else if (state == 2) { /* need object */
+	obj:
 			if (x.ty > JPO_CHAR) {
 				if (r->len >= JSLR_MAXLEN) {
 					D("too many fields in object");
@@ -443,10 +464,14 @@ jslr_1(struct _jp *p)
 	/* skip leading space */
 	jslr_space(p);
 	c = s->peek(s);
-	if (c == 0 || in_map("]}:,", c)) { /* NUL or tokens */
+	if (c == 0 || in_map("]}:,=", c)) { /* NUL or tokens */
 		r.ptr = c;
 		if (c)
 			s->consume(s);
+#ifdef JSLR_DOT
+	} else if (c == '.') {
+		r = jslr_dot(p);
+#endif
 	} else if (c == '"') { /* start string */
 		r = jslr_string(p);
 #ifdef JSLR_SLOPPY
@@ -500,6 +525,8 @@ jslr_parse(struct _jp_stream *s, char *pool, uint32_t pool_len)
 			r1 = _r_EINVAL;
 		}
 	}
+	if (r1.ty == JPO_PTR && r1.len == JPO_DOT)
+		r1.len = JPO_OBJECT;
 	return r1;
 
 bad_size:
