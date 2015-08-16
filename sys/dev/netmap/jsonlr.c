@@ -11,6 +11,7 @@
 #include <sys/socket.h>
 #include <net/if.h>
 #include <machine/bus.h>
+#include <machine/stdarg.h>
 
 #elif defined(linux)
 
