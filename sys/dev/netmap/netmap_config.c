@@ -294,10 +294,13 @@ netmap_confbuf_destroy(struct netmap_confbuf *cb)
 	memset(cb, 0, sizeof(*cb));
 }
 
+static int netmap_config_dump_json(const char *pool, struct _jpo*,
+		struct netmap_confbuf *);
 void
 netmap_config_init(struct netmap_config *c)
 {
 	NM_MTX_INIT(c->mux);
+	c->dump = netmap_config_dump_json;
 }
 
 void
@@ -312,7 +315,7 @@ netmap_config_uninit(struct netmap_config *c, int locked)
 }
 
 static int
-netmap_config_dump(const char *pool, struct _jpo *r,
+netmap_config_dump_json_rec(const char *pool, struct _jpo *r,
 		struct netmap_confbuf *out, int ind, int cont)
 {
 	int i, error = 0;
@@ -334,7 +337,7 @@ again:
 			if (!error)
 				error = netmap_confbuf_printf(out, "\n");
 			if (!error)
-				error = netmap_config_dump(pool, r + 1 + i,
+				error = netmap_config_dump_json_rec(pool, r + 1 + i,
 					out, ind + 1, 0);
 		}
 		if (!error)
@@ -354,7 +357,7 @@ again:
 					"\"%s\": ",
 					jslr_get_string(pool, *(r + 1 + i)));
 			if (!error)
-				error = netmap_config_dump(pool, r + 2 + i,
+				error = netmap_config_dump_json_rec(pool, r + 2 + i,
 					out, ind + 1, 1);
 		}
 		if (!error)
@@ -379,6 +382,19 @@ again:
 		break;
 	}
 	return error;
+}
+
+static int
+netmap_config_dump_json(const char *pool, struct _jpo* r,
+		struct netmap_confbuf *cb)
+{
+	int error;
+
+	error = netmap_config_dump_json_rec(pool, r, cb, 0, 0);
+	if (error)
+		return error;
+	netmap_confbuf_printf(cb, "\n");
+	return 0;
 }
 
 
@@ -423,9 +439,7 @@ netmap_config_parse(struct netmap_config *c, int locked)
 	r = netmap_interp_interp(&netmap_interp_root.up, r, pool);
 	if (!locked)
 		NMG_UNLOCK();
-	error = netmap_config_dump(pool, &r, o, 0, 0);
-	if (!error)
-		error = netmap_confbuf_printf(o, "\n");
+	error = c->dump(pool, &r, o);
 	netmap_confbuf_trunc(o);
 out:
 	free(pool, M_DEVBUF);

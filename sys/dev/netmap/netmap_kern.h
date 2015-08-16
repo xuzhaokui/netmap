@@ -268,10 +268,13 @@ struct netmap_confbuf {
 	u_int next_r;
 };
 
+#include "jsonlr.h"
+
 struct netmap_config {
 	NM_MTX_T mux;
 	struct netmap_confbuf buf[2]; /* 0 in, 1 out */
 	int written;
+	int (*dump)(const char *pool, struct _jpo*, struct netmap_confbuf *);
 };
 void netmap_config_init(struct netmap_config*);
 void netmap_config_uninit(struct netmap_config*, int locked);
@@ -279,8 +282,6 @@ struct uio;
 int netmap_config_read(struct netmap_config *, struct uio *);
 int netmap_config_write(struct netmap_config *, struct uio *);
 int netmap_config_parse(struct netmap_config*, int locked);
-
-#include "jsonlr.h"
 
 struct netmap_interp {
 	struct _jpo (*interp)(struct netmap_interp *, struct _jpo, char *pool);
