@@ -1019,7 +1019,7 @@ nm_jp_ndump(struct nm_jp *ip, char *pool)
 }
 
 
-int
+void
 nm_jp_ninit(struct nm_jp_num *in, void *var, size_t size,
 		int (*update)(struct nm_jp_num *, int64_t))
 {
@@ -1028,13 +1028,6 @@ nm_jp_ninit(struct nm_jp_num *in, void *var, size_t size,
 	in->var = var;
 	in->size = size;
 	in->update = update;
-	return 0;
-}
-
-int
-nm_jp_nuninit(struct nm_jp_num *in)
-{
-	return 0;
 }
 
 #endif /* WITH_NMCONF */
