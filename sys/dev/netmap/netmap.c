@@ -2774,7 +2774,7 @@ nm_jp_port_init(struct netmap_adapter *na)
 	error = NM_JP_LADD_RONUM(il, &na->ip_users, na->active_fds, "users");
 	if (error)
 		goto fail;
-	error = nm_jp_num_init(&na->ip_mem,
+	error = nm_jp_ninit(&na->ip_mem,
 			nm_jp_memid_read, 0,
 			nm_jp_memid_update);
 	if (error)

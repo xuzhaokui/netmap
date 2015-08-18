@@ -940,11 +940,11 @@ nm_jp_lsearch(struct nm_jp_list *il, const char *name)
 }
 
 static int64_t
-nm_jp_num_getvar(struct nm_jp_num *in)
+nm_jp_ngetvar(struct nm_jp_num *in)
 {
 	switch (in->size) {
 	case 0:
-		return ((nm_jp_num_reader)in->var)(in);
+		return ((nm_jp_nreader)in->var)(in);
 	case 1:
 		return *(int8_t*)in->var;
 	case 2:
@@ -960,7 +960,7 @@ nm_jp_num_getvar(struct nm_jp_num *in)
 }
 
 int
-nm_jp_num_update(struct nm_jp_num *in, int64_t v)
+nm_jp_nupdate(struct nm_jp_num *in, int64_t v)
 {
 	switch (in->size) {
 	case 1:
@@ -982,7 +982,7 @@ nm_jp_num_update(struct nm_jp_num *in, int64_t v)
 }
 
 static struct _jpo
-nm_jp_num_interp(struct nm_jp *ip, struct _jpo r, char *pool)
+nm_jp_ninterp(struct nm_jp *ip, struct _jpo r, char *pool)
 {
 	int64_t v, nv;
 	struct nm_jp_num *in = (struct nm_jp_num *)ip;
@@ -994,7 +994,7 @@ nm_jp_num_interp(struct nm_jp *ip, struct _jpo r, char *pool)
 	}
 
 	nv = jslr_get_num(pool, r);
-	v = nm_jp_num_getvar(in);
+	v = nm_jp_ngetvar(in);
 	if (v == nv)
 		goto done;
 	if (in->update == NULL) {
@@ -1010,21 +1010,21 @@ done:
 }
 
 static struct _jpo
-nm_jp_num_dump(struct nm_jp *ip, char *pool)
+nm_jp_ndump(struct nm_jp *ip, char *pool)
 {
 	struct nm_jp_num *in = (struct nm_jp_num*)ip;
-	int64_t v = nm_jp_num_getvar(in);
+	int64_t v = nm_jp_ngetvar(in);
 
 	return jslr_new_num(pool, v);
 }
 
 
 int
-nm_jp_num_init(struct nm_jp_num *in, void *var, size_t size,
+nm_jp_ninit(struct nm_jp_num *in, void *var, size_t size,
 		int (*update)(struct nm_jp_num *, int64_t))
 {
-	in->up.interp = nm_jp_num_interp;
-	in->up.dump = nm_jp_num_dump;
+	in->up.interp = nm_jp_ninterp;
+	in->up.dump = nm_jp_ndump;
 	in->var = var;
 	in->size = size;
 	in->update = update;
@@ -1032,7 +1032,7 @@ nm_jp_num_init(struct nm_jp_num *in, void *var, size_t size,
 }
 
 int
-nm_jp_num_uninit(struct nm_jp_num *in)
+nm_jp_nuninit(struct nm_jp_num *in)
 {
 	return 0;
 }

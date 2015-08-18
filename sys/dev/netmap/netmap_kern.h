@@ -335,21 +335,21 @@ struct nm_jp_num {
 	int (*update)(struct nm_jp_num *, int64_t);
 };
 
-typedef int64_t (*nm_jp_num_reader)(struct nm_jp_num *);
-int nm_jp_num_init(struct nm_jp_num *, void *var, size_t size,
+typedef int64_t (*nm_jp_nreader)(struct nm_jp_num *);
+int nm_jp_ninit(struct nm_jp_num *, void *var, size_t size,
 		int (*update)(struct nm_jp_num *, int64_t));
-int nm_jp_num_uninit(struct nm_jp_num *);
-int nm_jp_num_update(struct nm_jp_num *, int64_t);
+int nm_jp_nuninit(struct nm_jp_num *);
+int nm_jp_nupdate(struct nm_jp_num *, int64_t);
 #define NM_JP_LADD_NUM(il, in, v, u, fmt, ...)					\
 	({									\
 	 	int __rv;							\
 	 	do {								\
-			__rv = nm_jp_num_init(in, &(v), sizeof(v), u);		\
+			__rv = nm_jp_ninit(in, &(v), sizeof(v), u);		\
 			if (__rv)						\
 				break;						\
 			__rv = nm_jp_ladd(il, &(in)->up, fmt, ##__VA_ARGS__);	\
 			if (__rv) {						\
-				nm_jp_num_uninit(in);				\
+				nm_jp_nuninit(in);				\
 			}							\
 		} while (0);							\
 		__rv;								\
@@ -357,10 +357,10 @@ int nm_jp_num_update(struct nm_jp_num *, int64_t);
 #define NM_JP_LADD_RONUM(il, in, v, fmt, ...)					\
 	NM_JP_LADD_NUM(il, in, v, NULL, fmt, ##__VA_ARGS__)
 #define NM_JP_LADD_RWNUM(il, in, v, fmt, ...)					\
-	NM_JP_LADD_NUM(il, in, v, nm_jp_num_update, fmt, ##__VA_ARGS__)
+	NM_JP_LADD_NUM(il, in, v, nm_jp_nupdate, fmt, ##__VA_ARGS__)
 #define NM_JP_LDEL_NUM(il, in) do {						\
 	 	nm_jp_ldel(il, &(in)->up);					\
-	 	nm_jp_num_uninit(in);						\
+	 	nm_jp_nuninit(in);						\
 	 } while (0)
 
 
