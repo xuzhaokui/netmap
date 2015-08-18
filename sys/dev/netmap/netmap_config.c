@@ -78,14 +78,14 @@
 
 /* simple buffers for incoming/outgoing data on read()/write() */
 
-struct nm_confbuf_data {
-	struct nm_confbuf_data *chain;
+struct nm_confb_data {
+	struct nm_confb_data *chain;
 	u_int size;
 	char data[];
 };
 
 static void
-netmap_confbuf_trunc(struct netmap_confbuf *cb)
+nm_confb_trunc(struct nm_confb *cb)
 {
 	if (cb->writep)
 		cb->writep->size = cb->next_w;
@@ -98,9 +98,9 @@ netmap_confbuf_trunc(struct netmap_confbuf *cb)
  * willing to accept a buffer with a smaller size than requested.
  */
 static void*
-netmap_confbuf_pre_write(struct netmap_confbuf *cb, u_int req_size, u_int *avl_size)
+nm_confb_pre_write(struct nm_confb *cb, u_int req_size, u_int *avl_size)
 {
-	struct nm_confbuf_data *d, *nd;
+	struct nm_confb_data *d, *nd;
 	u_int s = 0, b;
 	void *ret;
 
@@ -129,7 +129,7 @@ netmap_confbuf_pre_write(struct netmap_confbuf *cb, u_int req_size, u_int *avl_s
 		 * is not big enough. Truncate the chunk and
 		 * move to the next one.
 		 */
-		netmap_confbuf_trunc(cb);
+		nm_confb_trunc(cb);
 		d->chain = nd;
 	}
 	cb->n_data++;
@@ -151,7 +151,7 @@ out:
 }
 
 static void
-netmap_confbuf_post_write(struct netmap_confbuf *cb, u_int size)
+nm_confb_post_write(struct nm_confb *cb, u_int size)
 {
 	if (cb->next_w == cb->writep->size) {
 		cb->writep = cb->writep->chain;
@@ -162,7 +162,7 @@ netmap_confbuf_post_write(struct netmap_confbuf *cb, u_int size)
 }
 
 static int
-netmap_confbuf_printf(struct netmap_confbuf *cb, const char *format, ...)
+nm_confb_printf(struct nm_confb *cb, const char *format, ...)
 {
 	va_list ap;
 	int rv;
@@ -170,7 +170,7 @@ netmap_confbuf_printf(struct netmap_confbuf *cb, const char *format, ...)
 	void *p;
 
 	for (;;) {
-		p = netmap_confbuf_pre_write(cb, size, psz);
+		p = nm_confb_pre_write(cb, size, psz);
 		if (p == NULL)
 			return ENOMEM;
 		va_start(ap, format);
@@ -183,20 +183,20 @@ netmap_confbuf_printf(struct netmap_confbuf *cb, const char *format, ...)
 		psz = NULL;
 	}
 	if (rv >= 0)
-		netmap_confbuf_post_write(cb, rv);
+		nm_confb_post_write(cb, rv);
 	return 0;
 }
 
-#define netmap_confbuf_iprintf(cb, i, fmt, ...)					\
+#define nm_confb_iprintf(cb, i, fmt, ...)					\
 	({									\
 		int __j, __rv = 0;						\
 		for (__j = 0; __j < (i); __j++)	{				\
-			__rv = netmap_confbuf_printf(cb, "    ");		\
+			__rv = nm_confb_printf(cb, "    ");			\
 	 		if (__rv)						\
 	 			break;						\
 	 	}								\
 	 	if (__rv == 0)							\
-			__rv = netmap_confbuf_printf(cb, fmt, ##__VA_ARGS__);	\
+			__rv = nm_confb_printf(cb, fmt, ##__VA_ARGS__);		\
 	 	__rv;								\
 	 })
 
@@ -206,9 +206,9 @@ netmap_confbuf_printf(struct netmap_confbuf *cb, const char *format, ...)
  * if size is 0, no other bytes can be read.
  */
 static void*
-netmap_confbuf_pre_read(struct netmap_confbuf *cb, u_int *size)
+nm_confb_pre_read(struct nm_confb *cb, u_int *size)
 {
-	struct nm_confbuf_data *d;
+	struct nm_confb_data *d;
 	u_int n;
 
 	d = cb->readp;
@@ -237,10 +237,10 @@ netmap_confbuf_pre_read(struct netmap_confbuf *cb, u_int *size)
 }
 
 static void
-netmap_confbuf_post_read(struct netmap_confbuf *cb, u_int size)
+nm_confb_post_read(struct nm_confb *cb, u_int size)
 {
 	if (cb->next_r == cb->readp->size) {
-		struct nm_confbuf_data *ocb = cb->readp;
+		struct nm_confb_data *ocb = cb->readp;
 		cb->readp = cb->readp->chain;
 		cb->next_r = 0;
 		free(ocb, M_DEVBUF);
@@ -250,44 +250,44 @@ netmap_confbuf_post_read(struct netmap_confbuf *cb, u_int size)
 }
 
 static int
-netmap_confbuf_empty(struct netmap_confbuf *cb)
+nm_confb_empty(struct nm_confb *cb)
 {
 	u_int sz = 1;
-	return (netmap_confbuf_pre_read(cb, &sz) == NULL);
+	return (nm_confb_pre_read(cb, &sz) == NULL);
 }
 
 struct netmap_jp_stream {
 	struct _jp_stream stream;
-	struct netmap_confbuf *cb;
+	struct nm_confb *cb;
 };
 
 static int
-netmap_confbuf_peek(struct _jp_stream *jp)
+nm_confb_peek(struct _jp_stream *jp)
 {
 	struct netmap_jp_stream *n = (struct netmap_jp_stream *)jp;
-	struct netmap_confbuf *cb = n->cb;
+	struct nm_confb *cb = n->cb;
 	u_int s = 1;
-	void *p = netmap_confbuf_pre_read(cb, &s);
+	void *p = nm_confb_pre_read(cb, &s);
 	if (p == NULL)
 		return 0;
 	return *(char *)p;
 }
 
 static void
-netmap_confbuf_consume(struct _jp_stream *jp)
+nm_confb_consume(struct _jp_stream *jp)
 {
 	struct netmap_jp_stream *n = (struct netmap_jp_stream *)jp;
-	struct netmap_confbuf *cb = n->cb;
-	netmap_confbuf_post_read(cb, 1);
+	struct nm_confb *cb = n->cb;
+	nm_confb_post_read(cb, 1);
 }
 
 static void
-netmap_confbuf_destroy(struct netmap_confbuf *cb)
+nm_confb_destroy(struct nm_confb *cb)
 {
-	struct nm_confbuf_data *d = cb->readp;
+	struct nm_confb_data *d = cb->readp;
 
 	while (d) {
-		struct nm_confbuf_data *nd = d->chain;
+		struct nm_confb_data *nd = d->chain;
 		free(d, M_DEVBUF);
 		d = nd;
 	}
@@ -295,9 +295,9 @@ netmap_confbuf_destroy(struct netmap_confbuf *cb)
 }
 
 static int nm_conf_dump_json(const char *pool, struct _jpo*,
-		struct netmap_confbuf *);
+		struct nm_confb *);
 static int nm_conf_dump_flat(const char *pool, struct _jpo*,
-		struct netmap_confbuf *);
+		struct nm_confb *);
 extern int nm_conf_flat_mode;
 void
 nm_conf_init(struct nm_conf *c)
@@ -315,50 +315,50 @@ nm_conf_uninit(struct nm_conf *c, int locked)
 	
 	(void)nm_conf_parse(c, locked);
 	for (i = 0; i < 2; i++)
-		netmap_confbuf_destroy(c->buf + i);
+		nm_confb_destroy(c->buf + i);
 	NM_MTX_DESTROY(c->mux);
 }
 
 static int
 nm_conf_dump_json_rec(const char *pool, struct _jpo *r,
-		struct netmap_confbuf *out, int ind, int cont)
+		struct nm_confb *out, int ind, int cont)
 {
 	int i, error = 0;
 again:
 	switch (r->ty) {
 	case JPO_NUM:
-		return netmap_confbuf_iprintf(out, (cont ? 0 : ind),
+		return nm_confb_iprintf(out, (cont ? 0 : ind),
 				"%ld", jslr_get_num(pool, *r));
 		break;
 	case JPO_STRING:
-		return netmap_confbuf_iprintf(out, (cont ? 0 : ind),
+		return nm_confb_iprintf(out, (cont ? 0 : ind),
 				"\"%s\"", jslr_get_string(pool, *r));
 		break;
 	case JPO_ARRAY:
-		error = netmap_confbuf_iprintf(out, (cont ? 0 : ind), "[");
+		error = nm_confb_iprintf(out, (cont ? 0 : ind), "[");
 		for (i = 0; !error && i < r->len; i++) {
 			if (i)
-				error = netmap_confbuf_printf(out, ",");
+				error = nm_confb_printf(out, ",");
 			if (!error)
-				error = netmap_confbuf_printf(out, "\n");
+				error = nm_confb_printf(out, "\n");
 			if (!error)
 				error = nm_conf_dump_json_rec(pool, r + 1 + i,
 					out, ind + 1, 0);
 		}
 		if (!error)
-			error = netmap_confbuf_printf(out, "\n");
+			error = nm_confb_printf(out, "\n");
 		if (!error)
-			error = netmap_confbuf_iprintf(out, ind, "]");
+			error = nm_confb_iprintf(out, ind, "]");
 		break;
 	case JPO_OBJECT:
-		error = netmap_confbuf_iprintf(out, (cont ? 0: ind), "{");
+		error = nm_confb_iprintf(out, (cont ? 0: ind), "{");
 		for (i = 0; !error && (i < 2 * r->len); i += 2) {
 			if (i)
-				error = netmap_confbuf_printf(out, ",");
+				error = nm_confb_printf(out, ",");
 			if (!error)
-				error = netmap_confbuf_printf(out, "\n");
+				error = nm_confb_printf(out, "\n");
 			if (!error)
-				error = netmap_confbuf_iprintf(out, ind + 1,
+				error = nm_confb_iprintf(out, ind + 1,
 					"\"%s\": ",
 					jslr_get_string(pool, *(r + 1 + i)));
 			if (!error)
@@ -366,9 +366,9 @@ again:
 					out, ind + 1, 1);
 		}
 		if (!error)
-			error = netmap_confbuf_printf(out, "\n");
+			error = nm_confb_printf(out, "\n");
 		if (!error)
-			netmap_confbuf_iprintf(out, ind, "}");
+			nm_confb_iprintf(out, ind, "}");
 		break;
 	case JPO_PTR:
 		switch (r->len) {
@@ -391,14 +391,14 @@ again:
 
 static int
 nm_conf_dump_json(const char *pool, struct _jpo* r,
-		struct netmap_confbuf *cb)
+		struct nm_confb *cb)
 {
 	int error;
 
 	error = nm_conf_dump_json_rec(pool, r, cb, 0, 0);
 	if (error)
 		return error;
-	netmap_confbuf_printf(cb, "\n");
+	nm_confb_printf(cb, "\n");
 	return 0;
 }
 
@@ -426,18 +426,18 @@ nm_flat_prefix_append(struct nm_flat_prefix *st, const char *fmt, ...)
 
 static int
 nm_conf_dump_flat_rec(const char *pool, struct _jpo *r,
-		struct netmap_confbuf *out, const struct nm_flat_prefix *st)
+		struct nm_confb *out, const struct nm_flat_prefix *st)
 {
 	int i, error = 0;
 	struct nm_flat_prefix lst;
 again:
 	switch (r->ty) {
 	case JPO_NUM:
-		return netmap_confbuf_printf(out, "%s: %ld\n",
+		return nm_confb_printf(out, "%s: %ld\n",
 				st->base, jslr_get_num(pool, *r));
 		break;
 	case JPO_STRING:
-		return netmap_confbuf_printf(out, "%s: \"%s\"\n",
+		return nm_confb_printf(out, "%s: \"%s\"\n",
 				st->base, jslr_get_string(pool, *r));
 		break;
 	case JPO_ARRAY:
@@ -480,7 +480,7 @@ again:
 
 static int
 nm_conf_dump_flat(const char *pool, struct _jpo *r,
-		struct netmap_confbuf *cb)
+		struct nm_confb *cb)
 {
 	char buf[128];
 	struct nm_flat_prefix lst = {
@@ -502,20 +502,20 @@ nm_conf_parse(struct nm_conf *c, int locked)
 {
 	char *pool;
 	uint32_t pool_len = NETMAP_CONFIG_POOL_SIZE;
-	struct netmap_confbuf *i = &c->buf[0],
+	struct nm_confb *i = &c->buf[0],
 			      *o = &c->buf[1];
 	struct netmap_jp_stream njs = {
 		.stream = {
-			.peek = netmap_confbuf_peek,
-			.consume = netmap_confbuf_consume,
+			.peek = nm_confb_peek,
+			.consume = nm_confb_consume,
 		},
 		.cb = i,
 	};
 	struct _jpo r;
 	int error = 0;
 
-	netmap_confbuf_trunc(i);
-	if (netmap_confbuf_empty(i))
+	nm_confb_trunc(i);
+	if (nm_confb_empty(i))
 		return 0;
 
 	pool = malloc(pool_len, M_DEVBUF, M_ZERO);
@@ -524,7 +524,7 @@ nm_conf_parse(struct nm_conf *c, int locked)
 	r = jslr_parse(&njs.stream, pool, pool_len);
 	if (r.ty == JPO_ERR) {
 		D("parse error: %d", r.ptr);
-		netmap_confbuf_destroy(i);
+		nm_confb_destroy(i);
 		goto out;
 	}
 	D("parse OK: ty %u len %u ptr %u", r.ty, r.len, r.ptr);
@@ -534,7 +534,7 @@ nm_conf_parse(struct nm_conf *c, int locked)
 	if (!locked)
 		NMG_UNLOCK();
 	error = c->dump(pool, &r, o);
-	netmap_confbuf_trunc(o);
+	nm_confb_trunc(o);
 out:
 	free(pool, M_DEVBUF);
 	return error;
@@ -544,16 +544,16 @@ int
 nm_conf_write(struct nm_conf *c, struct uio *uio)
 {
 	int ret = 0;
-	struct netmap_confbuf *i = &c->buf[0],
+	struct nm_confb *i = &c->buf[0],
 			      *o = &c->buf[1];
 
 	NM_MTX_LOCK(c->mux);
 
-	netmap_confbuf_destroy(o);
+	nm_confb_destroy(o);
 
 	while (uio->uio_resid > 0) {
 		int s = uio->uio_resid;
-		void *p = netmap_confbuf_pre_write(i, s, &s);
+		void *p = nm_confb_pre_write(i, s, &s);
 		if (p == NULL) {
 			ND("NULL p from confbuf_pre_write");
 			ret = ENOMEM;
@@ -563,7 +563,7 @@ nm_conf_write(struct nm_conf *c, struct uio *uio)
 		ret = uiomove(p, s, uio);
 		if (ret)
 			goto out;
-		netmap_confbuf_post_write(i, s);
+		nm_confb_post_write(i, s);
 		c->written = 1;
 	}
 
@@ -576,13 +576,13 @@ int
 nm_conf_read(struct nm_conf *c, struct uio *uio)
 {
 	int ret = 0;
-	struct netmap_confbuf *i = &c->buf[0],
+	struct nm_confb *i = &c->buf[0],
 			      *o = &c->buf[1];
 
 	NM_MTX_LOCK(c->mux);
 
 	if (!c->written) {
-		netmap_confbuf_printf(i, "dump");
+		nm_confb_printf(i, "dump");
 		c->written = 1;
 	}
 
@@ -592,14 +592,14 @@ nm_conf_read(struct nm_conf *c, struct uio *uio)
 
 	while (uio->uio_resid > 0) {
 		int s = uio->uio_resid;
-		void *p = netmap_confbuf_pre_read(o, &s);
+		void *p = nm_confb_pre_read(o, &s);
 		if (p == NULL) {
 			goto out;
 		}
 		ret = uiomove(p, s, uio);
 		if (ret)
 			goto out;
-		netmap_confbuf_post_read(o, s);
+		nm_confb_post_read(o, s);
 	}
 
 out:

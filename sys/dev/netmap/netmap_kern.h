@@ -259,10 +259,10 @@ typedef struct hrtimer{
 
 #ifdef WITH_NMCONF
 
-struct nm_confbuf_data;
-struct netmap_confbuf {
-	struct nm_confbuf_data *readp;
-	struct nm_confbuf_data *writep;
+struct nm_confb_data;
+struct nm_confb {
+	struct nm_confb_data *readp;
+	struct nm_confb_data *writep;
 	u_int n_data;
 	u_int next_w;
 	u_int next_r;
@@ -272,9 +272,9 @@ struct netmap_confbuf {
 
 struct nm_conf {
 	NM_MTX_T mux;
-	struct netmap_confbuf buf[2]; /* 0 in, 1 out */
+	struct nm_confb buf[2]; /* 0 in, 1 out */
 	int written;
-	int (*dump)(const char *pool, struct _jpo*, struct netmap_confbuf *);
+	int (*dump)(const char *pool, struct _jpo*, struct nm_confb *);
 };
 void nm_conf_init(struct nm_conf*);
 void nm_conf_uninit(struct nm_conf*, int locked);
