@@ -828,8 +828,8 @@ netmap_krings_create(struct netmap_adapter *na, u_int tailroom)
 			mtx_init(&kring->q_lock, (t == NR_TX ? "nm_txq_lock" : "nm_rxq_lock"), NULL, MTX_DEF);
 			init_waitqueue_head(&kring->si);
 #ifdef WITH_NMCONF
-			nm_jp_list_init(&kring->ip, 10);
-			nm_jp_list_add(&na->ring_ip, &kring->ip.up, "%s%d", nm_txrx2str(t), i);
+			nm_jp_linit(&kring->ip, 10);
+			nm_jp_ladd(&na->ring_ip, &kring->ip.up, "%s%d", nm_txrx2str(t), i);
 #endif
 		}
 		init_waitqueue_head(&na->si[t]);
@@ -868,8 +868,8 @@ netmap_krings_delete(struct netmap_adapter *na)
 	/* we rely on the krings layout described above */
 	for ( ; kring != na->tailroom; kring++) {
 #ifdef WITH_NMCONF
-		nm_jp_list_del(&na->ring_ip, &kring->ip.up);
-		nm_jp_list_uninit(&kring->ip);
+		nm_jp_ldel(&na->ring_ip, &kring->ip.up);
+		nm_jp_luninit(&kring->ip);
 #endif
 		mtx_destroy(&kring->q_lock);
 		netmap_knlist_destroy(&kring->si);
@@ -2646,17 +2646,17 @@ nm_jp_port_uninit(struct netmap_adapter *na)
 {
 	struct nm_jp_list *il = &na->ip;
 
-	NM_JP_LIST_DEL_NUM(il, &na->ip_num_tx_rings);
-	NM_JP_LIST_DEL_NUM(il, &na->ip_num_rx_rings);
-	NM_JP_LIST_DEL_NUM(il, &na->ip_num_tx_desc);
-	NM_JP_LIST_DEL_NUM(il, &na->ip_num_rx_desc);
-	NM_JP_LIST_DEL_NUM(il, &na->ip_mem);
-	NM_JP_LIST_DEL_NUM(il, &na->ip_users);
-	nm_jp_list_del(il, &na->ip_flags);
-	nm_jp_list_del(il, &na->ring_ip.up);
-	nm_jp_list_uninit(&na->ring_ip);
-	nm_jp_list_del(&nm_jp_ports, &il->up);
-	nm_jp_list_uninit(il);
+	NM_JP_LDEL_NUM(il, &na->ip_num_tx_rings);
+	NM_JP_LDEL_NUM(il, &na->ip_num_rx_rings);
+	NM_JP_LDEL_NUM(il, &na->ip_num_tx_desc);
+	NM_JP_LDEL_NUM(il, &na->ip_num_rx_desc);
+	NM_JP_LDEL_NUM(il, &na->ip_mem);
+	NM_JP_LDEL_NUM(il, &na->ip_users);
+	nm_jp_ldel(il, &na->ip_flags);
+	nm_jp_ldel(il, &na->ring_ip.up);
+	nm_jp_luninit(&na->ring_ip);
+	nm_jp_ldel(&nm_jp_ports, &il->up);
+	nm_jp_luninit(il);
 }
 
 static int64_t
@@ -2765,13 +2765,13 @@ nm_jp_port_init(struct netmap_adapter *na)
 	int error = 0;
 	struct nm_jp_list *il = &na->ip;
 
-	error = nm_jp_list_init(il, 10);
+	error = nm_jp_linit(il, 10);
 	if (error)
 		goto fail;
-	error = nm_jp_list_add(&nm_jp_ports, &il->up, na->name);
+	error = nm_jp_ladd(&nm_jp_ports, &il->up, na->name);
 	if (error)
 		goto fail;
-	error = NM_JP_LIST_ADD_RONUM(il, &na->ip_users, na->active_fds, "users");
+	error = NM_JP_LADD_RONUM(il, &na->ip_users, na->active_fds, "users");
 	if (error)
 		goto fail;
 	error = nm_jp_num_init(&na->ip_mem,
@@ -2779,33 +2779,33 @@ nm_jp_port_init(struct netmap_adapter *na)
 			nm_jp_memid_update);
 	if (error)
 		goto fail;
-	error = nm_jp_list_add(il, &na->ip_mem.up, "mem");
+	error = nm_jp_ladd(il, &na->ip_mem.up, "mem");
 	if (error)
 		goto fail;
-	error = nm_jp_list_init(&na->ring_ip, 10);
+	error = nm_jp_linit(&na->ring_ip, 10);
 	if (error)
 		goto fail;
 	na->ip_flags.dump = nm_jp_flags_dump;
-	error = nm_jp_list_add(il, &na->ip_flags, "flags");
+	error = nm_jp_ladd(il, &na->ip_flags, "flags");
 	if (error)
 		goto fail;
-	error = NM_JP_LIST_ADD_RONUM(il, &na->ip_num_tx_rings,
+	error = NM_JP_LADD_RONUM(il, &na->ip_num_tx_rings,
 			na->num_tx_rings, "num-tx-rings");
 	if (error)
 		goto fail;
-	error = NM_JP_LIST_ADD_RONUM(il, &na->ip_num_rx_rings,
+	error = NM_JP_LADD_RONUM(il, &na->ip_num_rx_rings,
 			na->num_rx_rings, "num-rx-rings");
 	if (error)
 		goto fail;
-	error = NM_JP_LIST_ADD_RONUM(il, &na->ip_num_tx_desc,
+	error = NM_JP_LADD_RONUM(il, &na->ip_num_tx_desc,
 			na->num_tx_desc, "num-tx-desc");
 	if (error)
 		goto fail;
-	error = NM_JP_LIST_ADD_RONUM(il, &na->ip_num_rx_desc,
+	error = NM_JP_LADD_RONUM(il, &na->ip_num_rx_desc,
 			na->num_rx_desc, "num-rx-desc");
 	if (error)
 		goto fail;
-	error = nm_jp_list_add(il, &na->ring_ip.up, "rings");
+	error = nm_jp_ladd(il, &na->ring_ip.up, "rings");
 	if (error)
 		goto fail;
 	return 0;
@@ -3393,9 +3393,9 @@ netmap_fini(void)
 	netmap_mem_fini();
 	NMG_LOCK_DESTROY();
 #ifdef WITH_NMCONF
-	nm_jp_list_del(&nm_jp_root, &nm_jp_ports.up);
-	nm_jp_list_uninit(&nm_jp_ports);
-	nm_jp_list_uninit(&nm_jp_root);
+	nm_jp_ldel(&nm_jp_root, &nm_jp_ports.up);
+	nm_jp_luninit(&nm_jp_ports);
+	nm_jp_luninit(&nm_jp_root);
 #endif /* WITH_NMCONF */
 	printf("netmap: unloaded module.\n");
 }
@@ -3409,23 +3409,23 @@ netmap_init(void)
 	NMG_LOCK_INIT();
 
 #ifdef WITH_NMCONF
-	error = nm_jp_list_init(&nm_jp_root, 4);
+	error = nm_jp_linit(&nm_jp_root, 4);
 	if (error)
 		goto fail;
 	nm_jp_version.dump = netmap_version_dump;
-	error = nm_jp_list_add(&nm_jp_root,
+	error = nm_jp_ladd(&nm_jp_root,
 			&nm_jp_version, "version");
 	if (error)
 		goto fail;
 	nm_jp_mode.dump = nm_jp_mode_dump;
-	error = nm_jp_list_add(&nm_jp_root,
+	error = nm_jp_ladd(&nm_jp_root,
 			&nm_jp_mode, "output-mode");
 	if (error)
 		goto fail;
-	error = nm_jp_list_init(&nm_jp_ports, 10);
+	error = nm_jp_linit(&nm_jp_ports, 10);
 	if (error)
 		goto fail;
-	error = nm_jp_list_add(&nm_jp_root,
+	error = nm_jp_ladd(&nm_jp_root,
 			&nm_jp_ports.up, "port");
 	if (error)
 		goto fail;

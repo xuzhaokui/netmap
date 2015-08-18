@@ -282,9 +282,9 @@ netmap_bdg_interp_interp(struct nm_jp *ip, struct _jpo r, char *pool)
 static void
 netmap_bdg_interp_uninit(struct nm_bridge *b)
 {
-	nm_jp_list_del(&nm_jp_bridge, &b->ip.up);
-	nm_jp_list_del(&b->ip, &b->ip_ports);
-	nm_jp_list_uninit(&b->ip);
+	nm_jp_ldel(&nm_jp_bridge, &b->ip.up);
+	nm_jp_ldel(&b->ip, &b->ip_ports);
+	nm_jp_luninit(&b->ip);
 }
 
 static int
@@ -292,16 +292,16 @@ netmap_bdg_interp_init(struct nm_bridge *b)
 {
 	int error;
 
-	error = nm_jp_list_init(&b->ip, 10);
+	error = nm_jp_linit(&b->ip, 10);
 	if (error)
 		goto fail;
 	b->ip_ports.dump = netmap_bdg_interp_dump;
 	b->ip_ports.interp = netmap_bdg_interp_interp;
 	b->ip_ports.bracket = NULL;
-	error = nm_jp_list_add(&b->ip, &b->ip_ports, "ports");
+	error = nm_jp_ladd(&b->ip, &b->ip_ports, "ports");
 	if (error)
 		goto fail;
-	error = nm_jp_list_add(&nm_jp_bridge, &b->ip.up, b->bdg_basename);
+	error = nm_jp_ladd(&nm_jp_bridge, &b->ip.up, b->bdg_basename);
 	if (error)
 		goto fail;
 	return 0;
@@ -1917,12 +1917,12 @@ netmap_vp_create(struct nmreq *nmr, struct ifnet *ifp, struct netmap_vp_adapter 
 	if (error)
 		goto err;
 #ifdef WITH_NMCONF
-	error = NM_JP_LIST_ADD_RONUM(&na->ip,
+	error = NM_JP_LADD_RONUM(&na->ip,
 			&vpna->ip_virt_hdr_len,
 			vpna->virt_hdr_len, "virt-hdr-len");
 	if (error)
 		goto err;
-	error = NM_JP_LIST_ADD_RONUM(&na->ip,
+	error = NM_JP_LADD_RONUM(&na->ip,
 			&vpna->ip_mfs, vpna->mfs, "mfs");
 	if (error)
 		goto err;
@@ -2469,10 +2469,10 @@ netmap_init_bridges(void)
 	}
 #endif /* CONFIG_NET_NS */
 #ifdef WITH_NMCONF
-	error = nm_jp_list_init(&nm_jp_bridge, 10);
+	error = nm_jp_linit(&nm_jp_bridge, 10);
 	if (error)
 		goto fail;
-	error = nm_jp_list_add(&nm_jp_root,
+	error = nm_jp_ladd(&nm_jp_root,
 			&nm_jp_bridge.up, "bridge");
 	if (error)
 		goto fail;
@@ -2488,8 +2488,8 @@ void
 netmap_uninit_bridges(void)
 {
 #ifdef WITH_NMCONF
-	nm_jp_list_del(&nm_jp_root, &nm_jp_bridge.up);
-	nm_jp_list_uninit(&nm_jp_bridge);
+	nm_jp_ldel(&nm_jp_root, &nm_jp_bridge.up);
+	nm_jp_luninit(&nm_jp_bridge);
 #endif /* WITH_NMCONF */
 #ifdef CONFIG_NET_NS
 	netmap_bns_unregister();

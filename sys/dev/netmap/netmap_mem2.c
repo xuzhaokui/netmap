@@ -299,21 +299,21 @@ netmap_mem_interp_uninit(struct netmap_mem_d *nmd)
 		struct netmap_obj_pool *p = nmd->pools + i;
 		struct nm_jp_list *pil = &p->ip;
 
-		NM_JP_LIST_DEL_NUM(pil, &p->ip_req_size);
-		NM_JP_LIST_DEL_NUM(pil, &p->ip_req_total);
-		NM_JP_LIST_DEL_NUM(pil, &p->ip_clustsize);
-		NM_JP_LIST_DEL_NUM(pil, &p->ip_numclusters);
-		NM_JP_LIST_DEL_NUM(pil, &p->ip_size);
-		NM_JP_LIST_DEL_NUM(pil, &p->ip_free);
-		NM_JP_LIST_DEL_NUM(pil, &p->ip_total);
-		nm_jp_list_del(il, &pil->up);
-		nm_jp_list_uninit(pil);
+		NM_JP_LDEL_NUM(pil, &p->ip_req_size);
+		NM_JP_LDEL_NUM(pil, &p->ip_req_total);
+		NM_JP_LDEL_NUM(pil, &p->ip_clustsize);
+		NM_JP_LDEL_NUM(pil, &p->ip_numclusters);
+		NM_JP_LDEL_NUM(pil, &p->ip_size);
+		NM_JP_LDEL_NUM(pil, &p->ip_free);
+		NM_JP_LDEL_NUM(pil, &p->ip_total);
+		nm_jp_ldel(il, &pil->up);
+		nm_jp_luninit(pil);
 	}
-	NM_JP_LIST_DEL_NUM(il, &nmd->ip_iogrp);
-	NM_JP_LIST_DEL_NUM(il, &nmd->ip_totsize);
-	NM_JP_LIST_DEL_NUM(il, &nmd->ip_users);
-	nm_jp_list_del(&nm_jp_mem, &il->up);
-	nm_jp_list_uninit(il);
+	NM_JP_LDEL_NUM(il, &nmd->ip_iogrp);
+	NM_JP_LDEL_NUM(il, &nmd->ip_totsize);
+	NM_JP_LDEL_NUM(il, &nmd->ip_users);
+	nm_jp_ldel(&nm_jp_mem, &il->up);
+	nm_jp_luninit(il);
 }
 
 static void
@@ -333,64 +333,64 @@ netmap_mem_interp_bracket(struct nm_jp *i, int stage)
 }
 
 static int
-netmap_mem_interp_init(struct netmap_mem_d *nmd, struct nm_jp_list_elem *e)
+netmap_mem_interp_init(struct netmap_mem_d *nmd, struct nm_jp_lelem *e)
 {
 	int error, i;
 	struct nm_jp_list *il = &nmd->ip;
 	static const char *names[] = { "if", "ring", "buf" };
 
 	snprintf(nmd->name, NM_MEM_NAMESZ, "%d", nmd->nm_id);
-	error = nm_jp_list_init(il, 10);
+	error = nm_jp_linit(il, 10);
 	if (error)
 		goto fail;
 	il->up.bracket = netmap_mem_interp_bracket;
-	error = NM_JP_LIST_ADD_RONUM(il, &nmd->ip_users, nmd->active, "users");
+	error = NM_JP_LADD_RONUM(il, &nmd->ip_users, nmd->active, "users");
 	if (error)
 		goto fail;
-	error = NM_JP_LIST_ADD_RONUM(il, &nmd->ip_totsize, nmd->nm_totalsize, "totsize");
+	error = NM_JP_LADD_RONUM(il, &nmd->ip_totsize, nmd->nm_totalsize, "totsize");
 	if (error)
 		goto fail;
-	error = NM_JP_LIST_ADD_RONUM(il, &nmd->ip_iogrp, nmd->nm_grp, "iogrp");
+	error = NM_JP_LADD_RONUM(il, &nmd->ip_iogrp, nmd->nm_grp, "iogrp");
 	if (error)
 		goto fail;
 	for (i = 0; i < NETMAP_POOLS_NR; i++) {
 		struct netmap_obj_pool *p = nmd->pools + i;
 		struct nm_jp_list *pil = &p->ip;
 
-		error = nm_jp_list_init(pil, 10);
+		error = nm_jp_linit(pil, 10);
 		if (error)
 			goto fail_del;
-		error = NM_JP_LIST_ADD_RONUM(pil, &p->ip_total, p->objtotal, "total");
+		error = NM_JP_LADD_RONUM(pil, &p->ip_total, p->objtotal, "total");
 		if (error)
 			goto fail_del;
-		error = NM_JP_LIST_ADD_RONUM(pil, &p->ip_free, p->objfree, "free");
+		error = NM_JP_LADD_RONUM(pil, &p->ip_free, p->objfree, "free");
 		if (error)
 			goto fail_del;
-		error = NM_JP_LIST_ADD_RONUM(pil, &p->ip_size, p->_objsize, "size");
+		error = NM_JP_LADD_RONUM(pil, &p->ip_size, p->_objsize, "size");
 		if (error)
 			goto fail_del;
-		error = NM_JP_LIST_ADD_RONUM(pil, &p->ip_numclusters,
+		error = NM_JP_LADD_RONUM(pil, &p->ip_numclusters,
 				p->_numclusters, "num-clusters");
 		if (error)
 			goto fail_del;
-		error = NM_JP_LIST_ADD_RONUM(pil, &p->ip_clustsize,
+		error = NM_JP_LADD_RONUM(pil, &p->ip_clustsize,
 				p->_clustsize, "cluster-size");
 		if (error)
 			goto fail_del;
-		error = NM_JP_LIST_ADD_RWNUM(pil, &p->ip_req_total,
+		error = NM_JP_LADD_RWNUM(pil, &p->ip_req_total,
 				nmd->params[i].num, "req-total");
 		if (error)
 			goto fail_del;
-		error = NM_JP_LIST_ADD_RWNUM(pil, &p->ip_req_size,
+		error = NM_JP_LADD_RWNUM(pil, &p->ip_req_size,
 				nmd->params[i].size, "req-size");
 		if (error)
 			goto fail_del;
-		error = nm_jp_list_add(&nmd->ip, &pil->up, names[i]);
+		error = nm_jp_ladd(&nmd->ip, &pil->up, names[i]);
 		if (error)
 			goto fail_del;
 	}
 	D("filling %s", nmd->name);
-	error = nm_jp_list_elem_fill(e, &nmd->ip.up, nmd->name);
+	error = nm_jp_lelem_fill(e, &nmd->ip.up, nmd->name);
 	if (error)
 		goto fail;
 
@@ -405,9 +405,9 @@ fail:
 static int
 netmap_mem_interp_add(struct netmap_mem_d *nmd)
 {
-	struct nm_jp_list_elem *e;
+	struct nm_jp_lelem *e;
 
-	e = nm_jp_list_new_elem(&nm_jp_mem);
+	e = nm_jp_lnew_elem(&nm_jp_mem);
 	if (e == NULL)
 		return ENOMEM;
 	return netmap_mem_interp_init(nmd, e);
@@ -1807,7 +1807,7 @@ netmap_mem2_delete(struct netmap_mem_d *nmd)
 
 #ifdef WITH_NMCONF
 static int
-netmap_mem_interp_new(struct nm_jp_list_elem *e)
+netmap_mem_interp_new(struct nm_jp_lelem *e)
 {
 	struct netmap_mem_d *d;
 	int err = 0;
@@ -1841,12 +1841,12 @@ netmap_mem_init(void)
 	nm_mem.params = netmap_params;
 	netmap_mem_get(&nm_mem);
 #ifdef WITH_NMCONF
-	error = nm_jp_list_init(&nm_jp_mem, 10);
+	error = nm_jp_linit(&nm_jp_mem, 10);
 	if (error)
 		goto fail_put;
 	nm_jp_mem.new = netmap_mem_interp_new;
 	nm_jp_mem.delete = netmap_mem_interp_delete;
-	error = nm_jp_list_add(&nm_jp_root,
+	error = nm_jp_ladd(&nm_jp_root,
 			&nm_jp_mem.up, "mem");
 	if (error)
 		goto fail_uninit;
@@ -1860,7 +1860,7 @@ netmap_mem_init(void)
 fail_uninit2:
 	netmap_mem_interp_uninit(&nm_mem);
 fail_uninit:
-	nm_jp_list_uninit(&nm_jp_mem);
+	nm_jp_luninit(&nm_jp_mem);
 fail_put:
 	netmap_mem_put(&nm_mem);
 	return (error);
@@ -1871,8 +1871,8 @@ void
 netmap_mem_fini(void)
 {
 #ifdef WITH_NMCONF
-	nm_jp_list_del(&nm_jp_root, &nm_jp_mem.up);
-	nm_jp_list_uninit(&nm_jp_mem);
+	nm_jp_ldel(&nm_jp_root, &nm_jp_mem.up);
+	nm_jp_luninit(&nm_jp_mem);
 #endif /* WITH_NMCONF */
 	netmap_mem_put(&nm_mem);
 }

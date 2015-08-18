@@ -291,7 +291,7 @@ struct nm_jp {
 
 struct _jpo nm_jp_error(char *pool, const char *fmt, ...);
 
-struct nm_jp_list_elem {
+struct nm_jp_lelem {
 #define	NETMAP_CONFIG_MAXNAME	64
 	char name[NETMAP_CONFIG_MAXNAME];
 	struct nm_jp *ip;
@@ -300,34 +300,34 @@ struct nm_jp_list_elem {
 
 struct nm_jp_list {
 	struct nm_jp up;
-	struct nm_jp_list_elem *list;
+	struct nm_jp_lelem *list;
 	u_int minelem;
 	u_int nelem;
 	u_int nextfree;
 
-	int (*new)(struct nm_jp_list_elem *);
+	int (*new)(struct nm_jp_lelem *);
 	void (*delete)(struct nm_jp *);
 };
 
-int nm_jp_list_init(struct nm_jp_list *, u_int nelem);
-void nm_jp_list_uninit(struct nm_jp_list *);
-struct nm_jp_list_elem *nm_jp_list_new_elem(struct nm_jp_list *);
-int nm_jp_list_elem_fill(struct nm_jp_list_elem *e,
+int nm_jp_linit(struct nm_jp_list *, u_int nelem);
+void nm_jp_luninit(struct nm_jp_list *);
+struct nm_jp_lelem *nm_jp_lnew_elem(struct nm_jp_list *);
+int nm_jp_lelem_fill(struct nm_jp_lelem *e,
 		struct nm_jp *, const char *fmt, ...);
-#define nm_jp_list_add(il, ip, fmt, ...) ({ 		\
-	int __rv = 0;						\
-	do {							\
-		struct nm_jp_list_elem *__e =		\
-			nm_jp_list_new_elem(il);	\
-		if (__e == NULL) {				\
-			__rv = ENOMEM;				\
-			break;					\
-		}						\
-		__rv = nm_jp_list_elem_fill(__e, ip,	\
-			fmt, ##__VA_ARGS__);			\
+#define nm_jp_ladd(il, ip, fmt, ...) ({ 		\
+	int __rv = 0;					\
+	do {						\
+		struct nm_jp_lelem *__e =		\
+			nm_jp_lnew_elem(il);		\
+		if (__e == NULL) {			\
+			__rv = ENOMEM;			\
+			break;				\
+		}					\
+		__rv = nm_jp_lelem_fill(__e, ip,	\
+			fmt, ##__VA_ARGS__);		\
 	} while (0); __rv; })
 
-int nm_jp_list_del(struct nm_jp_list *, struct nm_jp *);
+int nm_jp_ldel(struct nm_jp_list *, struct nm_jp *);
 struct nm_jp_num {
 	struct nm_jp up;
 	void *var;
@@ -340,26 +340,26 @@ int nm_jp_num_init(struct nm_jp_num *, void *var, size_t size,
 		int (*update)(struct nm_jp_num *, int64_t));
 int nm_jp_num_uninit(struct nm_jp_num *);
 int nm_jp_num_update(struct nm_jp_num *, int64_t);
-#define NM_JP_LIST_ADD_NUM(il, in, v, u, fmt, ...)				\
-	({										\
-	 	int __rv;								\
-	 	do {									\
+#define NM_JP_LADD_NUM(il, in, v, u, fmt, ...)					\
+	({									\
+	 	int __rv;							\
+	 	do {								\
 			__rv = nm_jp_num_init(in, &(v), sizeof(v), u);		\
-			if (__rv)							\
-				break;							\
-			__rv = nm_jp_list_add(il, &(in)->up, fmt, ##__VA_ARGS__);\
-			if (__rv) {							\
+			if (__rv)						\
+				break;						\
+			__rv = nm_jp_ladd(il, &(in)->up, fmt, ##__VA_ARGS__);	\
+			if (__rv) {						\
 				nm_jp_num_uninit(in);				\
-			}								\
-		} while (0);								\
-		__rv;									\
+			}							\
+		} while (0);							\
+		__rv;								\
 	})
-#define NM_JP_LIST_ADD_RONUM(il, in, v, fmt, ...)				\
-	NM_JP_LIST_ADD_NUM(il, in, v, NULL, fmt, ##__VA_ARGS__)
-#define NM_JP_LIST_ADD_RWNUM(il, in, v, fmt, ...)				\
-	NM_JP_LIST_ADD_NUM(il, in, v, nm_jp_num_update, fmt, ##__VA_ARGS__)
-#define NM_JP_LIST_DEL_NUM(il, in) do {						\
-	 	nm_jp_list_del(il, &(in)->up);					\
+#define NM_JP_LADD_RONUM(il, in, v, fmt, ...)					\
+	NM_JP_LADD_NUM(il, in, v, NULL, fmt, ##__VA_ARGS__)
+#define NM_JP_LADD_RWNUM(il, in, v, fmt, ...)					\
+	NM_JP_LADD_NUM(il, in, v, nm_jp_num_update, fmt, ##__VA_ARGS__)
+#define NM_JP_LDEL_NUM(il, in) do {						\
+	 	nm_jp_ldel(il, &(in)->up);					\
 	 	nm_jp_num_uninit(in);						\
 	 } while (0)
 

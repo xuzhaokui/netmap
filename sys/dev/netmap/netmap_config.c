@@ -689,7 +689,7 @@ nm_jp_dump(struct nm_jp *ip, char *pool)
 }
 
 static struct _jpo
-nm_jp_list_delete(struct nm_jp_list *il, struct nm_jp_list_elem *e,
+nm_jp_ldelete(struct nm_jp_list *il, struct nm_jp_lelem *e,
 		char *pool)
 {
 	if (il->delete == NULL)
@@ -701,13 +701,13 @@ nm_jp_list_delete(struct nm_jp_list *il, struct nm_jp_list_elem *e,
 	return jslr_new_object(pool, 0);
 }
 
-static struct nm_jp_list_elem *
-nm_jp_list_search(struct nm_jp_list *il, const char *name);
+static struct nm_jp_lelem *
+nm_jp_lsearch(struct nm_jp_list *il, const char *name);
 
 static struct _jpo
-nm_jp_list_new(struct nm_jp_list *il, struct _jpo *pn, char *pool)
+nm_jp_lnew(struct nm_jp_list *il, struct _jpo *pn, char *pool)
 {
-	struct nm_jp_list_elem *e = NULL;
+	struct nm_jp_lelem *e = NULL;
 	struct nm_jp *ip;
 	struct _jpo o;
 	int error;
@@ -716,7 +716,7 @@ nm_jp_list_new(struct nm_jp_list *il, struct _jpo *pn, char *pool)
 		o = nm_jp_error(pool, "not supported");
 		goto out;
 	}
-	e = nm_jp_list_new_elem(il);
+	e = nm_jp_lnew_elem(il);
 	if (e == NULL) {
 		o = nm_jp_error(pool, "out of memory");
 		goto out;
@@ -746,7 +746,7 @@ out:
 
 
 static struct _jpo
-nm_jp_list_interp(struct nm_jp *ip, struct _jpo r, char *pool)
+nm_jp_linterp(struct nm_jp *ip, struct _jpo r, char *pool)
 {
 	struct _jpo *po;
 	int i, len, ty = r.len;
@@ -768,18 +768,18 @@ nm_jp_list_interp(struct nm_jp *ip, struct _jpo r, char *pool)
 	for (i = 0; i < len; i++) {
 		struct _jpo r1;
 		const char *name = jslr_get_string(pool, *po);
-		struct nm_jp_list_elem *e;
+		struct nm_jp_lelem *e;
 
 		if (name == NULL) {
 			r = nm_jp_error(pool, "internal error");
 			goto out;
 		}
 		if (strcmp(name, "new") == 0) {
-			r1 = nm_jp_list_new(il, po, pool);
+			r1 = nm_jp_lnew(il, po, pool);
 			po++;
 			goto next;
 		}
-		e = nm_jp_list_search(il, name);
+		e = nm_jp_lsearch(il, name);
 		if (e == NULL) {
 			po++;
 			r1 = nm_jp_error(pool, "%s: not found", name);
@@ -788,7 +788,7 @@ nm_jp_list_interp(struct nm_jp *ip, struct _jpo r, char *pool)
 		po++;
 		D("found %s", name);
 		if (nm_jp_streq(*po, pool, "delete")) {
-			r1 = nm_jp_list_delete(il, e, pool);
+			r1 = nm_jp_ldelete(il, e, pool);
 			goto next;
 		}
 		r1 = nm_jp_interp(e->ip, *po, pool);
@@ -801,7 +801,7 @@ out:
 }
 
 static struct _jpo
-nm_jp_list_dump(struct nm_jp *ip, char *pool)
+nm_jp_ldump(struct nm_jp *ip, char *pool)
 {
 	struct _jpo *po, r;
 	struct nm_jp_list *il = (struct nm_jp_list *)ip;
@@ -813,7 +813,7 @@ nm_jp_list_dump(struct nm_jp *ip, char *pool)
 	po = jslr_get_object(pool, r);
 	po++;
 	for (i = 0; i < len; i++) {
-		struct nm_jp_list_elem *e = &il->list[i];
+		struct nm_jp_lelem *e = &il->list[i];
 		*po = jslr_new_string(pool, e->name);
 		if (po->ty == JPO_ERR)
 			return *po;
@@ -827,10 +827,10 @@ nm_jp_list_dump(struct nm_jp *ip, char *pool)
 }
 
 int
-nm_jp_list_init(struct nm_jp_list *il, u_int nelem)
+nm_jp_linit(struct nm_jp_list *il, u_int nelem)
 {
-	il->up.interp = nm_jp_list_interp;
-	il->up.dump = nm_jp_list_dump;
+	il->up.interp = nm_jp_linterp;
+	il->up.dump = nm_jp_ldump;
 	il->minelem = nelem;
 	il->list = malloc(sizeof(*il->list) * nelem, M_DEVBUF, M_ZERO);
 	if (il->list == NULL)
@@ -841,16 +841,16 @@ nm_jp_list_init(struct nm_jp_list *il, u_int nelem)
 }
 
 void
-nm_jp_list_uninit(struct nm_jp_list *il)
+nm_jp_luninit(struct nm_jp_list *il)
 {
 	free(il->list, M_DEVBUF);
 	memset(il, 0, sizeof(*il));
 }
 
-struct nm_jp_list_elem *
-nm_jp_list_new_elem(struct nm_jp_list *il)
+struct nm_jp_lelem *
+nm_jp_lnew_elem(struct nm_jp_list *il)
 {
-	struct nm_jp_list_elem *newlist;
+	struct nm_jp_lelem *newlist;
 
 	if (il->nextfree >= il->nelem) {
 		u_int newnelem = il->nelem * 2;
@@ -865,7 +865,7 @@ nm_jp_list_new_elem(struct nm_jp_list *il)
 }
 
 int
-nm_jp_list_elem_fill(struct nm_jp_list_elem *e,
+nm_jp_lelem_fill(struct nm_jp_lelem *e,
 		struct nm_jp *ip,
 		const char *fmt, ...)
 {
@@ -884,9 +884,9 @@ nm_jp_list_elem_fill(struct nm_jp_list_elem *e,
 }
 
 static int
-_nm_jp_list_del(struct nm_jp_list *il, struct nm_jp_list_elem *e1)
+_nm_jp_ldel(struct nm_jp_list *il, struct nm_jp_lelem *e1)
 {
-	struct nm_jp_list_elem *e2;
+	struct nm_jp_lelem *e2;
 
 	il->nextfree--;
 	e2 = &il->list[il->nextfree];
@@ -896,7 +896,7 @@ _nm_jp_list_del(struct nm_jp_list *il, struct nm_jp_list_elem *e1)
 	}
 	memset(e2, 0, sizeof(*e2));
 	if (il->nelem > il->minelem && il->nextfree < il->nelem / 2) {
-		struct nm_jp_list_elem *newlist;
+		struct nm_jp_lelem *newlist;
 		u_int newnelem = il->nelem / 2;
 		if (newnelem < il->minelem)
 			newnelem = il->minelem;
@@ -912,25 +912,25 @@ _nm_jp_list_del(struct nm_jp_list *il, struct nm_jp_list_elem *e1)
 }
 
 int
-nm_jp_list_del(struct nm_jp_list *il, struct nm_jp *ip)
+nm_jp_ldel(struct nm_jp_list *il, struct nm_jp *ip)
 {
-	struct nm_jp_list_elem *e;
+	struct nm_jp_lelem *e;
 
 	for (e = il->list; e != il->list + il->nextfree; e++)
 		if (e->ip == ip)
 			goto found;
 	return ENOENT;
 found:
-	return _nm_jp_list_del(il, e);
+	return _nm_jp_ldel(il, e);
 }
 
 
-static struct nm_jp_list_elem *
-nm_jp_list_search(struct nm_jp_list *il, const char *name)
+static struct nm_jp_lelem *
+nm_jp_lsearch(struct nm_jp_list *il, const char *name)
 {
 	int i;
 	for (i = 0; i < il->nextfree; i++) {
-		struct nm_jp_list_elem *e = &il->list[i];
+		struct nm_jp_lelem *e = &il->list[i];
 		if (strncmp(name, e->name, NETMAP_CONFIG_MAXNAME) == 0)
 			break;
 	}
