@@ -828,8 +828,8 @@ netmap_krings_create(struct netmap_adapter *na, u_int tailroom)
 			mtx_init(&kring->q_lock, (t == NR_TX ? "nm_txq_lock" : "nm_rxq_lock"), NULL, MTX_DEF);
 			init_waitqueue_head(&kring->si);
 #ifdef WITH_NMCONF
-			netmap_interp_list_init(&kring->ip, 10);
-			netmap_interp_list_add(&na->ring_ip, &kring->ip.up, "%s%d", nm_txrx2str(t), i);
+			nm_jp_list_init(&kring->ip, 10);
+			nm_jp_list_add(&na->ring_ip, &kring->ip.up, "%s%d", nm_txrx2str(t), i);
 #endif
 		}
 		init_waitqueue_head(&na->si[t]);
@@ -868,8 +868,8 @@ netmap_krings_delete(struct netmap_adapter *na)
 	/* we rely on the krings layout described above */
 	for ( ; kring != na->tailroom; kring++) {
 #ifdef WITH_NMCONF
-		netmap_interp_list_del(&na->ring_ip, &kring->ip.up);
-		netmap_interp_list_uninit(&kring->ip);
+		nm_jp_list_del(&na->ring_ip, &kring->ip.up);
+		nm_jp_list_uninit(&kring->ip);
 #endif
 		mtx_destroy(&kring->q_lock);
 		netmap_knlist_destroy(&kring->si);
@@ -2642,25 +2642,25 @@ enum txrx tx, int flags)
 #ifdef WITH_NMCONF
 
 static void
-netmap_interp_port_uninit(struct netmap_adapter *na)
+nm_jp_port_uninit(struct netmap_adapter *na)
 {
-	struct netmap_interp_list *il = &na->ip;
+	struct nm_jp_list *il = &na->ip;
 
-	NETMAP_INTERP_LIST_DEL_NUM(il, &na->ip_num_tx_rings);
-	NETMAP_INTERP_LIST_DEL_NUM(il, &na->ip_num_rx_rings);
-	NETMAP_INTERP_LIST_DEL_NUM(il, &na->ip_num_tx_desc);
-	NETMAP_INTERP_LIST_DEL_NUM(il, &na->ip_num_rx_desc);
-	NETMAP_INTERP_LIST_DEL_NUM(il, &na->ip_mem);
-	NETMAP_INTERP_LIST_DEL_NUM(il, &na->ip_users);
-	netmap_interp_list_del(il, &na->ip_flags);
-	netmap_interp_list_del(il, &na->ring_ip.up);
-	netmap_interp_list_uninit(&na->ring_ip);
-	netmap_interp_list_del(&netmap_interp_ports, &il->up);
-	netmap_interp_list_uninit(il);
+	NM_JP_LIST_DEL_NUM(il, &na->ip_num_tx_rings);
+	NM_JP_LIST_DEL_NUM(il, &na->ip_num_rx_rings);
+	NM_JP_LIST_DEL_NUM(il, &na->ip_num_tx_desc);
+	NM_JP_LIST_DEL_NUM(il, &na->ip_num_rx_desc);
+	NM_JP_LIST_DEL_NUM(il, &na->ip_mem);
+	NM_JP_LIST_DEL_NUM(il, &na->ip_users);
+	nm_jp_list_del(il, &na->ip_flags);
+	nm_jp_list_del(il, &na->ring_ip.up);
+	nm_jp_list_uninit(&na->ring_ip);
+	nm_jp_list_del(&nm_jp_ports, &il->up);
+	nm_jp_list_uninit(il);
 }
 
 static int64_t
-netmap_interp_memid_read(struct netmap_interp_num *in)
+nm_jp_memid_read(struct nm_jp_num *in)
 {
 	struct netmap_adapter *na =
 		container_of(in, struct netmap_adapter, ip_mem);
@@ -2674,7 +2674,7 @@ netmap_interp_memid_read(struct netmap_interp_num *in)
 }
 
 static struct _jpo
-netmap_interp_flags_dump(struct netmap_interp *ip, char *pool)
+nm_jp_flags_dump(struct nm_jp *ip, char *pool)
 {
 	struct netmap_adapter *na =
 		container_of(ip, struct netmap_adapter, ip_flags);
@@ -2739,7 +2739,7 @@ netmap_interp_flags_dump(struct netmap_interp *ip, char *pool)
 }
 
 static int
-netmap_interp_memid_update(struct netmap_interp_num *in, int64_t id)
+nm_jp_memid_update(struct nm_jp_num *in, int64_t id)
 {
 	struct netmap_adapter *na =
 		container_of(in, struct netmap_adapter, ip_mem);
@@ -2760,58 +2760,58 @@ netmap_interp_memid_update(struct netmap_interp_num *in, int64_t id)
 }
 
 static int
-netmap_interp_port_init(struct netmap_adapter *na)
+nm_jp_port_init(struct netmap_adapter *na)
 {
 	int error = 0;
-	struct netmap_interp_list *il = &na->ip;
+	struct nm_jp_list *il = &na->ip;
 
-	error = netmap_interp_list_init(il, 10);
+	error = nm_jp_list_init(il, 10);
 	if (error)
 		goto fail;
-	error = netmap_interp_list_add(&netmap_interp_ports, &il->up, na->name);
+	error = nm_jp_list_add(&nm_jp_ports, &il->up, na->name);
 	if (error)
 		goto fail;
-	error = NETMAP_INTERP_LIST_ADD_RONUM(il, &na->ip_users, na->active_fds, "users");
+	error = NM_JP_LIST_ADD_RONUM(il, &na->ip_users, na->active_fds, "users");
 	if (error)
 		goto fail;
-	error = netmap_interp_num_init(&na->ip_mem,
-			netmap_interp_memid_read, 0,
-			netmap_interp_memid_update);
+	error = nm_jp_num_init(&na->ip_mem,
+			nm_jp_memid_read, 0,
+			nm_jp_memid_update);
 	if (error)
 		goto fail;
-	error = netmap_interp_list_add(il, &na->ip_mem.up, "mem");
+	error = nm_jp_list_add(il, &na->ip_mem.up, "mem");
 	if (error)
 		goto fail;
-	error = netmap_interp_list_init(&na->ring_ip, 10);
+	error = nm_jp_list_init(&na->ring_ip, 10);
 	if (error)
 		goto fail;
-	na->ip_flags.dump = netmap_interp_flags_dump;
-	error = netmap_interp_list_add(il, &na->ip_flags, "flags");
+	na->ip_flags.dump = nm_jp_flags_dump;
+	error = nm_jp_list_add(il, &na->ip_flags, "flags");
 	if (error)
 		goto fail;
-	error = NETMAP_INTERP_LIST_ADD_RONUM(il, &na->ip_num_tx_rings,
+	error = NM_JP_LIST_ADD_RONUM(il, &na->ip_num_tx_rings,
 			na->num_tx_rings, "num-tx-rings");
 	if (error)
 		goto fail;
-	error = NETMAP_INTERP_LIST_ADD_RONUM(il, &na->ip_num_rx_rings,
+	error = NM_JP_LIST_ADD_RONUM(il, &na->ip_num_rx_rings,
 			na->num_rx_rings, "num-rx-rings");
 	if (error)
 		goto fail;
-	error = NETMAP_INTERP_LIST_ADD_RONUM(il, &na->ip_num_tx_desc,
+	error = NM_JP_LIST_ADD_RONUM(il, &na->ip_num_tx_desc,
 			na->num_tx_desc, "num-tx-desc");
 	if (error)
 		goto fail;
-	error = NETMAP_INTERP_LIST_ADD_RONUM(il, &na->ip_num_rx_desc,
+	error = NM_JP_LIST_ADD_RONUM(il, &na->ip_num_rx_desc,
 			na->num_rx_desc, "num-rx-desc");
 	if (error)
 		goto fail;
-	error = netmap_interp_list_add(il, &na->ring_ip.up, "rings");
+	error = nm_jp_list_add(il, &na->ring_ip.up, "rings");
 	if (error)
 		goto fail;
 	return 0;
 
 fail:
-	netmap_interp_port_uninit(na);
+	nm_jp_port_uninit(na);
 	return error;
 }
 
@@ -2861,7 +2861,7 @@ netmap_attach_common(struct netmap_adapter *na)
 		na->nm_bdg_attach = netmap_bwrap_attach;
 #endif
 #ifdef WITH_NMCONF
-	error = netmap_interp_port_init(na);
+	error = nm_jp_port_init(na);
 	// XXX check error path
 #endif
 	return error;
@@ -2874,7 +2874,7 @@ void
 netmap_detach_common(struct netmap_adapter *na)
 {
 #ifdef WITH_NMCONF
-	netmap_interp_port_uninit(na);
+	nm_jp_port_uninit(na);
 #endif
 	if (na->tx_rings) { /* XXX should not happen */
 		D("freeing leftover tx_rings");
@@ -3350,21 +3350,21 @@ netmap_rx_irq(struct ifnet *ifp, u_int q, u_int *work_done)
 
 #ifdef WITH_NMCONF
 #include "netmap_version.h"
-struct netmap_interp netmap_interp_version;
+struct nm_jp nm_jp_version;
 static struct _jpo
-netmap_version_dump(struct netmap_interp *ip, char *pool)
+netmap_version_dump(struct nm_jp *ip, char *pool)
 {
 	return jslr_new_string(pool, NETMAP_VERSION);
 }
-struct netmap_interp netmap_interp_mode;
+struct nm_jp nm_jp_mode;
 static struct _jpo
-netmap_interp_mode_dump(struct netmap_interp *ip, char *pool)
+nm_jp_mode_dump(struct nm_jp *ip, char *pool)
 {
 	return jslr_new_string(pool,
 			nm_conf_flat_mode ? "flat" : "json");
 }
-struct netmap_interp_list netmap_interp_root;
-struct netmap_interp_list netmap_interp_ports;
+struct nm_jp_list nm_jp_root;
+struct nm_jp_list nm_jp_ports;
 #endif /* WITH_NMCONF */
 
 
@@ -3393,9 +3393,9 @@ netmap_fini(void)
 	netmap_mem_fini();
 	NMG_LOCK_DESTROY();
 #ifdef WITH_NMCONF
-	netmap_interp_list_del(&netmap_interp_root, &netmap_interp_ports.up);
-	netmap_interp_list_uninit(&netmap_interp_ports);
-	netmap_interp_list_uninit(&netmap_interp_root);
+	nm_jp_list_del(&nm_jp_root, &nm_jp_ports.up);
+	nm_jp_list_uninit(&nm_jp_ports);
+	nm_jp_list_uninit(&nm_jp_root);
 #endif /* WITH_NMCONF */
 	printf("netmap: unloaded module.\n");
 }
@@ -3409,24 +3409,24 @@ netmap_init(void)
 	NMG_LOCK_INIT();
 
 #ifdef WITH_NMCONF
-	error = netmap_interp_list_init(&netmap_interp_root, 4);
+	error = nm_jp_list_init(&nm_jp_root, 4);
 	if (error)
 		goto fail;
-	netmap_interp_version.dump = netmap_version_dump;
-	error = netmap_interp_list_add(&netmap_interp_root,
-			&netmap_interp_version, "version");
+	nm_jp_version.dump = netmap_version_dump;
+	error = nm_jp_list_add(&nm_jp_root,
+			&nm_jp_version, "version");
 	if (error)
 		goto fail;
-	netmap_interp_mode.dump = netmap_interp_mode_dump;
-	error = netmap_interp_list_add(&netmap_interp_root,
-			&netmap_interp_mode, "output-mode");
+	nm_jp_mode.dump = nm_jp_mode_dump;
+	error = nm_jp_list_add(&nm_jp_root,
+			&nm_jp_mode, "output-mode");
 	if (error)
 		goto fail;
-	error = netmap_interp_list_init(&netmap_interp_ports, 10);
+	error = nm_jp_list_init(&nm_jp_ports, 10);
 	if (error)
 		goto fail;
-	error = netmap_interp_list_add(&netmap_interp_root,
-			&netmap_interp_ports.up, "port");
+	error = nm_jp_list_add(&nm_jp_root,
+			&nm_jp_ports.up, "port");
 	if (error)
 		goto fail;
 #endif /* WITH_NMCONF */

@@ -283,89 +283,89 @@ int nm_conf_read(struct nm_conf *, struct uio *);
 int nm_conf_write(struct nm_conf *, struct uio *);
 int nm_conf_parse(struct nm_conf*, int locked);
 
-struct netmap_interp {
-	struct _jpo (*interp)(struct netmap_interp *, struct _jpo, char *pool);
-	struct _jpo (*dump)(struct netmap_interp *, char *pool);
-	void	    (*bracket)(struct netmap_interp *, int stage);
+struct nm_jp {
+	struct _jpo (*interp)(struct nm_jp *, struct _jpo, char *pool);
+	struct _jpo (*dump)(struct nm_jp *, char *pool);
+	void	    (*bracket)(struct nm_jp *, int stage);
 };
 
-struct _jpo netmap_interp_error(char *pool, const char *fmt, ...);
+struct _jpo nm_jp_error(char *pool, const char *fmt, ...);
 
-struct netmap_interp_list_elem {
+struct nm_jp_list_elem {
 #define	NETMAP_CONFIG_MAXNAME	64
 	char name[NETMAP_CONFIG_MAXNAME];
-	struct netmap_interp *ip;
+	struct nm_jp *ip;
 	int have_ref;
 };
 
-struct netmap_interp_list {
-	struct netmap_interp up;
-	struct netmap_interp_list_elem *list;
+struct nm_jp_list {
+	struct nm_jp up;
+	struct nm_jp_list_elem *list;
 	u_int minelem;
 	u_int nelem;
 	u_int nextfree;
 
-	int (*new)(struct netmap_interp_list_elem *);
-	void (*delete)(struct netmap_interp *);
+	int (*new)(struct nm_jp_list_elem *);
+	void (*delete)(struct nm_jp *);
 };
 
-int netmap_interp_list_init(struct netmap_interp_list *, u_int nelem);
-void netmap_interp_list_uninit(struct netmap_interp_list *);
-struct netmap_interp_list_elem *netmap_interp_list_new_elem(struct netmap_interp_list *);
-int netmap_interp_list_elem_fill(struct netmap_interp_list_elem *e,
-		struct netmap_interp *, const char *fmt, ...);
-#define netmap_interp_list_add(il, ip, fmt, ...) ({ 		\
+int nm_jp_list_init(struct nm_jp_list *, u_int nelem);
+void nm_jp_list_uninit(struct nm_jp_list *);
+struct nm_jp_list_elem *nm_jp_list_new_elem(struct nm_jp_list *);
+int nm_jp_list_elem_fill(struct nm_jp_list_elem *e,
+		struct nm_jp *, const char *fmt, ...);
+#define nm_jp_list_add(il, ip, fmt, ...) ({ 		\
 	int __rv = 0;						\
 	do {							\
-		struct netmap_interp_list_elem *__e =		\
-			netmap_interp_list_new_elem(il);	\
+		struct nm_jp_list_elem *__e =		\
+			nm_jp_list_new_elem(il);	\
 		if (__e == NULL) {				\
 			__rv = ENOMEM;				\
 			break;					\
 		}						\
-		__rv = netmap_interp_list_elem_fill(__e, ip,	\
+		__rv = nm_jp_list_elem_fill(__e, ip,	\
 			fmt, ##__VA_ARGS__);			\
 	} while (0); __rv; })
 
-int netmap_interp_list_del(struct netmap_interp_list *, struct netmap_interp *);
-struct netmap_interp_num {
-	struct netmap_interp up;
+int nm_jp_list_del(struct nm_jp_list *, struct nm_jp *);
+struct nm_jp_num {
+	struct nm_jp up;
 	void *var;
 	size_t size;
-	int (*update)(struct netmap_interp_num *, int64_t);
+	int (*update)(struct nm_jp_num *, int64_t);
 };
 
-typedef int64_t (*netmap_interp_num_reader)(struct netmap_interp_num *);
-int netmap_interp_num_init(struct netmap_interp_num *, void *var, size_t size,
-		int (*update)(struct netmap_interp_num *, int64_t));
-int netmap_interp_num_uninit(struct netmap_interp_num *);
-int netmap_interp_num_update(struct netmap_interp_num *, int64_t);
-#define NETMAP_INTERP_LIST_ADD_NUM(il, in, v, u, fmt, ...)				\
+typedef int64_t (*nm_jp_num_reader)(struct nm_jp_num *);
+int nm_jp_num_init(struct nm_jp_num *, void *var, size_t size,
+		int (*update)(struct nm_jp_num *, int64_t));
+int nm_jp_num_uninit(struct nm_jp_num *);
+int nm_jp_num_update(struct nm_jp_num *, int64_t);
+#define NM_JP_LIST_ADD_NUM(il, in, v, u, fmt, ...)				\
 	({										\
 	 	int __rv;								\
 	 	do {									\
-			__rv = netmap_interp_num_init(in, &(v), sizeof(v), u);		\
+			__rv = nm_jp_num_init(in, &(v), sizeof(v), u);		\
 			if (__rv)							\
 				break;							\
-			__rv = netmap_interp_list_add(il, &(in)->up, fmt, ##__VA_ARGS__);\
+			__rv = nm_jp_list_add(il, &(in)->up, fmt, ##__VA_ARGS__);\
 			if (__rv) {							\
-				netmap_interp_num_uninit(in);				\
+				nm_jp_num_uninit(in);				\
 			}								\
 		} while (0);								\
 		__rv;									\
 	})
-#define NETMAP_INTERP_LIST_ADD_RONUM(il, in, v, fmt, ...)				\
-	NETMAP_INTERP_LIST_ADD_NUM(il, in, v, NULL, fmt, ##__VA_ARGS__)
-#define NETMAP_INTERP_LIST_ADD_RWNUM(il, in, v, fmt, ...)				\
-	NETMAP_INTERP_LIST_ADD_NUM(il, in, v, netmap_interp_num_update, fmt, ##__VA_ARGS__)
-#define NETMAP_INTERP_LIST_DEL_NUM(il, in) do {						\
-	 	netmap_interp_list_del(il, &(in)->up);					\
-	 	netmap_interp_num_uninit(in);						\
+#define NM_JP_LIST_ADD_RONUM(il, in, v, fmt, ...)				\
+	NM_JP_LIST_ADD_NUM(il, in, v, NULL, fmt, ##__VA_ARGS__)
+#define NM_JP_LIST_ADD_RWNUM(il, in, v, fmt, ...)				\
+	NM_JP_LIST_ADD_NUM(il, in, v, nm_jp_num_update, fmt, ##__VA_ARGS__)
+#define NM_JP_LIST_DEL_NUM(il, in) do {						\
+	 	nm_jp_list_del(il, &(in)->up);					\
+	 	nm_jp_num_uninit(in);						\
 	 } while (0)
 
 
-extern struct netmap_interp_list netmap_interp_root;
-extern struct netmap_interp_list netmap_interp_ports;
+extern struct nm_jp_list nm_jp_root;
+extern struct nm_jp_list nm_jp_ports;
 
 #else /* ! WITH_NMCONF */
 
@@ -599,7 +599,7 @@ struct netmap_kring {
 #endif
 
 #ifdef WITH_NMCONF
-	struct netmap_interp_list ip;
+	struct nm_jp_list ip;
 #endif
 }
 #ifdef _WIN32
@@ -870,15 +870,15 @@ struct netmap_adapter {
 	char name[64];
 
 #ifdef WITH_NMCONF
-	struct netmap_interp_list ip;
-	struct netmap_interp_list ring_ip;
-	struct netmap_interp_num ip_users;
-	struct netmap_interp_num ip_mem;
-	struct netmap_interp ip_flags;
-	struct netmap_interp_num ip_num_tx_rings;
-	struct netmap_interp_num ip_num_rx_rings;
-	struct netmap_interp_num ip_num_tx_desc;
-	struct netmap_interp_num ip_num_rx_desc;
+	struct nm_jp_list ip;
+	struct nm_jp_list ring_ip;
+	struct nm_jp_num ip_users;
+	struct nm_jp_num ip_mem;
+	struct nm_jp ip_flags;
+	struct nm_jp_num ip_num_tx_rings;
+	struct nm_jp_num ip_num_rx_rings;
+	struct nm_jp_num ip_num_tx_desc;
+	struct nm_jp_num ip_num_rx_desc;
 #endif
 };
 
@@ -952,8 +952,8 @@ struct netmap_vp_adapter {	/* VALE software port */
 	uint64_t last_smac;
 
 #ifdef WITH_NMCONF
-	struct netmap_interp_num ip_virt_hdr_len;
-	struct netmap_interp_num ip_mfs;
+	struct nm_jp_num ip_virt_hdr_len;
+	struct nm_jp_num ip_mfs;
 #endif
 };
 

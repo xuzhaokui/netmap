@@ -808,7 +808,7 @@ generic_netmap_dtor(struct netmap_adapter *na)
 	if (prev_na != NULL) {
 		D("Released generic NA %p", gna);
 #ifdef WITH_NMCONF
-		netmap_interp_list_add(&netmap_interp_ports, &prev_na->ip.up, prev_na->name);
+		nm_jp_list_add(&nm_jp_ports, &prev_na->ip.up, prev_na->name);
 #endif
 		netmap_adapter_put(prev_na);
 		if (nm_iszombie(na)) {
@@ -893,8 +893,8 @@ generic_netmap_attach(struct ifnet *ifp)
 	if (gna->prev != NULL) {
 		netmap_adapter_get(gna->prev);
 #ifdef WITH_NMCONF
-		netmap_interp_list_del(&netmap_interp_ports, &gna->prev->ip.up);
-		netmap_interp_list_add(&gna->up.up.ip, &gna->prev->ip.up, "orig");
+		nm_jp_list_del(&nm_jp_ports, &gna->prev->ip.up);
+		nm_jp_list_add(&gna->up.up.ip, &gna->prev->ip.up, "orig");
 #endif
 	}
 	NM_ATTACH_NA(ifp, na);

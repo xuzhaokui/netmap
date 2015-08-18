@@ -125,15 +125,15 @@ struct netmap_obj_pool {
 
 #ifdef WITH_NMCONF
 	/* r/o */
-	struct netmap_interp_list ip;
-	struct netmap_interp_num ip_total;
-	struct netmap_interp_num ip_free;
-	struct netmap_interp_num ip_size;
-	struct netmap_interp_num ip_numclusters;
-	struct netmap_interp_num ip_clustsize;
+	struct nm_jp_list ip;
+	struct nm_jp_num ip_total;
+	struct nm_jp_num ip_free;
+	struct nm_jp_num ip_size;
+	struct nm_jp_num ip_numclusters;
+	struct nm_jp_num ip_clustsize;
 	/* r/w */
-	struct netmap_interp_num ip_req_total;
-	struct netmap_interp_num ip_req_size;
+	struct nm_jp_num ip_req_total;
+	struct nm_jp_num ip_req_size;
 #endif
 };
 
@@ -219,10 +219,10 @@ struct netmap_mem_d {
 #define	NM_MEM_NAMESZ	16
 	char name[NM_MEM_NAMESZ];
 #ifdef WITH_NMCONF
-	struct netmap_interp_list ip;
-	struct netmap_interp_num ip_users;
-	struct netmap_interp_num ip_totsize;
-	struct netmap_interp_num ip_iogrp;
+	struct nm_jp_list ip;
+	struct nm_jp_num ip_users;
+	struct nm_jp_num ip_totsize;
+	struct nm_jp_num ip_iogrp;
 #endif /* WITH_NMCONF */
 };
 
@@ -287,39 +287,39 @@ static int nm_mem_assign_group(struct netmap_mem_d *, struct device *);
 #define NMA_UNLOCK(n)		NM_MTX_UNLOCK((n)->nm_mtx)
 
 #ifdef WITH_NMCONF
-struct netmap_interp_list netmap_interp_mem;
+struct nm_jp_list nm_jp_mem;
 
 static void
 netmap_mem_interp_uninit(struct netmap_mem_d *nmd)
 {
 	int i;
-	struct netmap_interp_list *il = &nmd->ip;
+	struct nm_jp_list *il = &nmd->ip;
 
 	for (i = 0; i < NETMAP_POOLS_NR; i++) {
 		struct netmap_obj_pool *p = nmd->pools + i;
-		struct netmap_interp_list *pil = &p->ip;
+		struct nm_jp_list *pil = &p->ip;
 
-		NETMAP_INTERP_LIST_DEL_NUM(pil, &p->ip_req_size);
-		NETMAP_INTERP_LIST_DEL_NUM(pil, &p->ip_req_total);
-		NETMAP_INTERP_LIST_DEL_NUM(pil, &p->ip_clustsize);
-		NETMAP_INTERP_LIST_DEL_NUM(pil, &p->ip_numclusters);
-		NETMAP_INTERP_LIST_DEL_NUM(pil, &p->ip_size);
-		NETMAP_INTERP_LIST_DEL_NUM(pil, &p->ip_free);
-		NETMAP_INTERP_LIST_DEL_NUM(pil, &p->ip_total);
-		netmap_interp_list_del(il, &pil->up);
-		netmap_interp_list_uninit(pil);
+		NM_JP_LIST_DEL_NUM(pil, &p->ip_req_size);
+		NM_JP_LIST_DEL_NUM(pil, &p->ip_req_total);
+		NM_JP_LIST_DEL_NUM(pil, &p->ip_clustsize);
+		NM_JP_LIST_DEL_NUM(pil, &p->ip_numclusters);
+		NM_JP_LIST_DEL_NUM(pil, &p->ip_size);
+		NM_JP_LIST_DEL_NUM(pil, &p->ip_free);
+		NM_JP_LIST_DEL_NUM(pil, &p->ip_total);
+		nm_jp_list_del(il, &pil->up);
+		nm_jp_list_uninit(pil);
 	}
-	NETMAP_INTERP_LIST_DEL_NUM(il, &nmd->ip_iogrp);
-	NETMAP_INTERP_LIST_DEL_NUM(il, &nmd->ip_totsize);
-	NETMAP_INTERP_LIST_DEL_NUM(il, &nmd->ip_users);
-	netmap_interp_list_del(&netmap_interp_mem, &il->up);
-	netmap_interp_list_uninit(il);
+	NM_JP_LIST_DEL_NUM(il, &nmd->ip_iogrp);
+	NM_JP_LIST_DEL_NUM(il, &nmd->ip_totsize);
+	NM_JP_LIST_DEL_NUM(il, &nmd->ip_users);
+	nm_jp_list_del(&nm_jp_mem, &il->up);
+	nm_jp_list_uninit(il);
 }
 
 static void
-netmap_mem_interp_bracket(struct netmap_interp *i, int stage)
+netmap_mem_interp_bracket(struct nm_jp *i, int stage)
 {
-	struct netmap_interp_list *il = (struct netmap_interp_list *)i;
+	struct nm_jp_list *il = (struct nm_jp_list *)i;
 	struct netmap_mem_d *nmd = container_of(il, struct netmap_mem_d, ip);
 
 	if (stage == 0 /* entering */) {
@@ -333,64 +333,64 @@ netmap_mem_interp_bracket(struct netmap_interp *i, int stage)
 }
 
 static int
-netmap_mem_interp_init(struct netmap_mem_d *nmd, struct netmap_interp_list_elem *e)
+netmap_mem_interp_init(struct netmap_mem_d *nmd, struct nm_jp_list_elem *e)
 {
 	int error, i;
-	struct netmap_interp_list *il = &nmd->ip;
+	struct nm_jp_list *il = &nmd->ip;
 	static const char *names[] = { "if", "ring", "buf" };
 
 	snprintf(nmd->name, NM_MEM_NAMESZ, "%d", nmd->nm_id);
-	error = netmap_interp_list_init(il, 10);
+	error = nm_jp_list_init(il, 10);
 	if (error)
 		goto fail;
 	il->up.bracket = netmap_mem_interp_bracket;
-	error = NETMAP_INTERP_LIST_ADD_RONUM(il, &nmd->ip_users, nmd->active, "users");
+	error = NM_JP_LIST_ADD_RONUM(il, &nmd->ip_users, nmd->active, "users");
 	if (error)
 		goto fail;
-	error = NETMAP_INTERP_LIST_ADD_RONUM(il, &nmd->ip_totsize, nmd->nm_totalsize, "totsize");
+	error = NM_JP_LIST_ADD_RONUM(il, &nmd->ip_totsize, nmd->nm_totalsize, "totsize");
 	if (error)
 		goto fail;
-	error = NETMAP_INTERP_LIST_ADD_RONUM(il, &nmd->ip_iogrp, nmd->nm_grp, "iogrp");
+	error = NM_JP_LIST_ADD_RONUM(il, &nmd->ip_iogrp, nmd->nm_grp, "iogrp");
 	if (error)
 		goto fail;
 	for (i = 0; i < NETMAP_POOLS_NR; i++) {
 		struct netmap_obj_pool *p = nmd->pools + i;
-		struct netmap_interp_list *pil = &p->ip;
+		struct nm_jp_list *pil = &p->ip;
 
-		error = netmap_interp_list_init(pil, 10);
+		error = nm_jp_list_init(pil, 10);
 		if (error)
 			goto fail_del;
-		error = NETMAP_INTERP_LIST_ADD_RONUM(pil, &p->ip_total, p->objtotal, "total");
+		error = NM_JP_LIST_ADD_RONUM(pil, &p->ip_total, p->objtotal, "total");
 		if (error)
 			goto fail_del;
-		error = NETMAP_INTERP_LIST_ADD_RONUM(pil, &p->ip_free, p->objfree, "free");
+		error = NM_JP_LIST_ADD_RONUM(pil, &p->ip_free, p->objfree, "free");
 		if (error)
 			goto fail_del;
-		error = NETMAP_INTERP_LIST_ADD_RONUM(pil, &p->ip_size, p->_objsize, "size");
+		error = NM_JP_LIST_ADD_RONUM(pil, &p->ip_size, p->_objsize, "size");
 		if (error)
 			goto fail_del;
-		error = NETMAP_INTERP_LIST_ADD_RONUM(pil, &p->ip_numclusters,
+		error = NM_JP_LIST_ADD_RONUM(pil, &p->ip_numclusters,
 				p->_numclusters, "num-clusters");
 		if (error)
 			goto fail_del;
-		error = NETMAP_INTERP_LIST_ADD_RONUM(pil, &p->ip_clustsize,
+		error = NM_JP_LIST_ADD_RONUM(pil, &p->ip_clustsize,
 				p->_clustsize, "cluster-size");
 		if (error)
 			goto fail_del;
-		error = NETMAP_INTERP_LIST_ADD_RWNUM(pil, &p->ip_req_total,
+		error = NM_JP_LIST_ADD_RWNUM(pil, &p->ip_req_total,
 				nmd->params[i].num, "req-total");
 		if (error)
 			goto fail_del;
-		error = NETMAP_INTERP_LIST_ADD_RWNUM(pil, &p->ip_req_size,
+		error = NM_JP_LIST_ADD_RWNUM(pil, &p->ip_req_size,
 				nmd->params[i].size, "req-size");
 		if (error)
 			goto fail_del;
-		error = netmap_interp_list_add(&nmd->ip, &pil->up, names[i]);
+		error = nm_jp_list_add(&nmd->ip, &pil->up, names[i]);
 		if (error)
 			goto fail_del;
 	}
 	D("filling %s", nmd->name);
-	error = netmap_interp_list_elem_fill(e, &nmd->ip.up, nmd->name);
+	error = nm_jp_list_elem_fill(e, &nmd->ip.up, nmd->name);
 	if (error)
 		goto fail;
 
@@ -405,9 +405,9 @@ fail:
 static int
 netmap_mem_interp_add(struct netmap_mem_d *nmd)
 {
-	struct netmap_interp_list_elem *e;
+	struct nm_jp_list_elem *e;
 
-	e = netmap_interp_list_new_elem(&netmap_interp_mem);
+	e = nm_jp_list_new_elem(&nm_jp_mem);
 	if (e == NULL)
 		return ENOMEM;
 	return netmap_mem_interp_init(nmd, e);
@@ -1807,7 +1807,7 @@ netmap_mem2_delete(struct netmap_mem_d *nmd)
 
 #ifdef WITH_NMCONF
 static int
-netmap_mem_interp_new(struct netmap_interp_list_elem *e)
+netmap_mem_interp_new(struct nm_jp_list_elem *e)
 {
 	struct netmap_mem_d *d;
 	int err = 0;
@@ -1822,10 +1822,10 @@ netmap_mem_interp_new(struct netmap_interp_list_elem *e)
 }
 
 static void
-netmap_mem_interp_delete(struct netmap_interp *i)
+netmap_mem_interp_delete(struct nm_jp *i)
 {
-	struct netmap_interp_list *il = 
-		(struct netmap_interp_list *)i;
+	struct nm_jp_list *il = 
+		(struct nm_jp_list *)i;
 	struct netmap_mem_d *d =
 		container_of(il, struct netmap_mem_d, ip);
 	netmap_mem_put(d);
@@ -1841,13 +1841,13 @@ netmap_mem_init(void)
 	nm_mem.params = netmap_params;
 	netmap_mem_get(&nm_mem);
 #ifdef WITH_NMCONF
-	error = netmap_interp_list_init(&netmap_interp_mem, 10);
+	error = nm_jp_list_init(&nm_jp_mem, 10);
 	if (error)
 		goto fail_put;
-	netmap_interp_mem.new = netmap_mem_interp_new;
-	netmap_interp_mem.delete = netmap_mem_interp_delete;
-	error = netmap_interp_list_add(&netmap_interp_root,
-			&netmap_interp_mem.up, "mem");
+	nm_jp_mem.new = netmap_mem_interp_new;
+	nm_jp_mem.delete = netmap_mem_interp_delete;
+	error = nm_jp_list_add(&nm_jp_root,
+			&nm_jp_mem.up, "mem");
 	if (error)
 		goto fail_uninit;
 	error = netmap_mem_interp_add(&nm_mem);
@@ -1860,7 +1860,7 @@ netmap_mem_init(void)
 fail_uninit2:
 	netmap_mem_interp_uninit(&nm_mem);
 fail_uninit:
-	netmap_interp_list_uninit(&netmap_interp_mem);
+	nm_jp_list_uninit(&nm_jp_mem);
 fail_put:
 	netmap_mem_put(&nm_mem);
 	return (error);
@@ -1871,8 +1871,8 @@ void
 netmap_mem_fini(void)
 {
 #ifdef WITH_NMCONF
-	netmap_interp_list_del(&netmap_interp_root, &netmap_interp_mem.up);
-	netmap_interp_list_uninit(&netmap_interp_mem);
+	nm_jp_list_del(&nm_jp_root, &nm_jp_mem.up);
+	nm_jp_list_uninit(&nm_jp_mem);
 #endif /* WITH_NMCONF */
 	netmap_mem_put(&nm_mem);
 }

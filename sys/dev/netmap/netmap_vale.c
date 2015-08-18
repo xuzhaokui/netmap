@@ -232,8 +232,8 @@ struct nm_bridge {
 #endif /* CONFIG_NET_NS */
 
 #ifdef WITH_NMCONF
-	struct netmap_interp_list ip;
-	struct netmap_interp ip_ports;
+	struct nm_jp_list ip;
+	struct nm_jp ip_ports;
 #endif
 };
 
@@ -247,10 +247,10 @@ netmap_bdg_name(struct netmap_vp_adapter *vp)
 }
 
 #ifdef WITH_NMCONF
-struct netmap_interp_list netmap_interp_bridge;
+struct nm_jp_list nm_jp_bridge;
 
 static struct _jpo
-netmap_bdg_interp_dump(struct netmap_interp *ip, char *pool)
+netmap_bdg_interp_dump(struct nm_jp *ip, char *pool)
 {
 	struct nm_bridge *b = container_of(ip, struct nm_bridge, ip_ports);
 	int i, len;
@@ -274,7 +274,7 @@ out:
 }
 
 static struct _jpo
-netmap_bdg_interp_interp(struct netmap_interp *ip, struct _jpo r, char *pool)
+netmap_bdg_interp_interp(struct nm_jp *ip, struct _jpo r, char *pool)
 {
 	return netmap_bdg_interp_dump(ip, pool);
 }
@@ -282,9 +282,9 @@ netmap_bdg_interp_interp(struct netmap_interp *ip, struct _jpo r, char *pool)
 static void
 netmap_bdg_interp_uninit(struct nm_bridge *b)
 {
-	netmap_interp_list_del(&netmap_interp_bridge, &b->ip.up);
-	netmap_interp_list_del(&b->ip, &b->ip_ports);
-	netmap_interp_list_uninit(&b->ip);
+	nm_jp_list_del(&nm_jp_bridge, &b->ip.up);
+	nm_jp_list_del(&b->ip, &b->ip_ports);
+	nm_jp_list_uninit(&b->ip);
 }
 
 static int
@@ -292,16 +292,16 @@ netmap_bdg_interp_init(struct nm_bridge *b)
 {
 	int error;
 
-	error = netmap_interp_list_init(&b->ip, 10);
+	error = nm_jp_list_init(&b->ip, 10);
 	if (error)
 		goto fail;
 	b->ip_ports.dump = netmap_bdg_interp_dump;
 	b->ip_ports.interp = netmap_bdg_interp_interp;
 	b->ip_ports.bracket = NULL;
-	error = netmap_interp_list_add(&b->ip, &b->ip_ports, "ports");
+	error = nm_jp_list_add(&b->ip, &b->ip_ports, "ports");
 	if (error)
 		goto fail;
-	error = netmap_interp_list_add(&netmap_interp_bridge, &b->ip.up, b->bdg_basename);
+	error = nm_jp_list_add(&nm_jp_bridge, &b->ip.up, b->bdg_basename);
 	if (error)
 		goto fail;
 	return 0;
@@ -1917,12 +1917,12 @@ netmap_vp_create(struct nmreq *nmr, struct ifnet *ifp, struct netmap_vp_adapter 
 	if (error)
 		goto err;
 #ifdef WITH_NMCONF
-	error = NETMAP_INTERP_LIST_ADD_RONUM(&na->ip,
+	error = NM_JP_LIST_ADD_RONUM(&na->ip,
 			&vpna->ip_virt_hdr_len,
 			vpna->virt_hdr_len, "virt-hdr-len");
 	if (error)
 		goto err;
-	error = NETMAP_INTERP_LIST_ADD_RONUM(&na->ip,
+	error = NM_JP_LIST_ADD_RONUM(&na->ip,
 			&vpna->ip_mfs, vpna->mfs, "mfs");
 	if (error)
 		goto err;
@@ -2469,11 +2469,11 @@ netmap_init_bridges(void)
 	}
 #endif /* CONFIG_NET_NS */
 #ifdef WITH_NMCONF
-	error = netmap_interp_list_init(&netmap_interp_bridge, 10);
+	error = nm_jp_list_init(&nm_jp_bridge, 10);
 	if (error)
 		goto fail;
-	error = netmap_interp_list_add(&netmap_interp_root,
-			&netmap_interp_bridge.up, "bridge");
+	error = nm_jp_list_add(&nm_jp_root,
+			&nm_jp_bridge.up, "bridge");
 	if (error)
 		goto fail;
 #endif /* WITH_NMCONF */
@@ -2488,8 +2488,8 @@ void
 netmap_uninit_bridges(void)
 {
 #ifdef WITH_NMCONF
-	netmap_interp_list_del(&netmap_interp_root, &netmap_interp_bridge.up);
-	netmap_interp_list_uninit(&netmap_interp_bridge);
+	nm_jp_list_del(&nm_jp_root, &nm_jp_bridge.up);
+	nm_jp_list_uninit(&nm_jp_bridge);
 #endif /* WITH_NMCONF */
 #ifdef CONFIG_NET_NS
 	netmap_bns_unregister();

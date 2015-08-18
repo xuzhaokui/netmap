@@ -256,7 +256,7 @@ nm_confb_empty(struct nm_confb *cb)
 	return (nm_confb_pre_read(cb, &sz) == NULL);
 }
 
-struct netmap_jp_stream {
+struct nm_jp_stream {
 	struct _jp_stream stream;
 	struct nm_confb *cb;
 };
@@ -264,7 +264,7 @@ struct netmap_jp_stream {
 static int
 nm_confb_peek(struct _jp_stream *jp)
 {
-	struct netmap_jp_stream *n = (struct netmap_jp_stream *)jp;
+	struct nm_jp_stream *n = (struct nm_jp_stream *)jp;
 	struct nm_confb *cb = n->cb;
 	u_int s = 1;
 	void *p = nm_confb_pre_read(cb, &s);
@@ -276,7 +276,7 @@ nm_confb_peek(struct _jp_stream *jp)
 static void
 nm_confb_consume(struct _jp_stream *jp)
 {
-	struct netmap_jp_stream *n = (struct netmap_jp_stream *)jp;
+	struct nm_jp_stream *n = (struct nm_jp_stream *)jp;
 	struct nm_confb *cb = n->cb;
 	nm_confb_post_read(cb, 1);
 }
@@ -494,7 +494,7 @@ nm_conf_dump_flat(const char *pool, struct _jpo *r,
 
 #define NETMAP_CONFIG_POOL_SIZE (1<<12)
 
-static struct _jpo netmap_interp_interp(struct netmap_interp *,
+static struct _jpo nm_jp_interp(struct nm_jp *,
 		struct _jpo, char *);
 
 int
@@ -504,7 +504,7 @@ nm_conf_parse(struct nm_conf *c, int locked)
 	uint32_t pool_len = NETMAP_CONFIG_POOL_SIZE;
 	struct nm_confb *i = &c->buf[0],
 			      *o = &c->buf[1];
-	struct netmap_jp_stream njs = {
+	struct nm_jp_stream njs = {
 		.stream = {
 			.peek = nm_confb_peek,
 			.consume = nm_confb_consume,
@@ -530,7 +530,7 @@ nm_conf_parse(struct nm_conf *c, int locked)
 	D("parse OK: ty %u len %u ptr %u", r.ty, r.len, r.ptr);
 	if (!locked)
 		NMG_LOCK();
-	r = netmap_interp_interp(&netmap_interp_root.up, r, pool);
+	r = nm_jp_interp(&nm_jp_root.up, r, pool);
 	if (!locked)
 		NMG_UNLOCK();
 	error = c->dump(pool, &r, o);
@@ -610,7 +610,7 @@ out:
 
 
 struct _jpo
-netmap_interp_error(char *pool, const char *format, ...)
+nm_jp_error(char *pool, const char *format, ...)
 {
 	va_list ap;
 	struct _jpo r, *o;
@@ -640,7 +640,7 @@ netmap_interp_error(char *pool, const char *format, ...)
 }
 
 static int
-netmap_interp_streq(struct _jpo r, char *pool, const char *str1)
+nm_jp_streq(struct _jpo r, char *pool, const char *str1)
 {
 	const char *str;
 
@@ -652,92 +652,92 @@ netmap_interp_streq(struct _jpo r, char *pool, const char *str1)
 }
 
 static int
-netmap_interp_is_dump(struct _jpo r, char *pool)
+nm_jp_is_dump(struct _jpo r, char *pool)
 {
-	return netmap_interp_streq(r, pool, "dump");
+	return nm_jp_streq(r, pool, "dump");
 }
 
 static void
-netmap_interp_bracket(struct netmap_interp *ip, int stage)
+nm_jp_bracket(struct nm_jp *ip, int stage)
 {
 	if (ip->bracket)
 		ip->bracket(ip, stage);
 }
 
 static struct _jpo
-netmap_interp_interp(struct netmap_interp *ip, struct _jpo r, char *pool)
+nm_jp_interp(struct nm_jp *ip, struct _jpo r, char *pool)
 {
-	netmap_interp_bracket(ip, 0);
-	if (netmap_interp_is_dump(r, pool) || ip->interp == NULL) {
+	nm_jp_bracket(ip, 0);
+	if (nm_jp_is_dump(r, pool) || ip->interp == NULL) {
 		r = ip->dump(ip, pool);
 	} else {
 		r = ip->interp(ip, r, pool);
 	}
-	netmap_interp_bracket(ip, 2);
+	nm_jp_bracket(ip, 2);
 	return r;
 }
 
 static struct _jpo
-netmap_interp_dump(struct netmap_interp *ip, char *pool)
+nm_jp_dump(struct nm_jp *ip, char *pool)
 {
 	struct _jpo r;
 
-	netmap_interp_bracket(ip, 0);
+	nm_jp_bracket(ip, 0);
 	r = ip->dump(ip, pool);
-	netmap_interp_bracket(ip, 2);
+	nm_jp_bracket(ip, 2);
 	return r;
 }
 
 static struct _jpo
-netmap_interp_list_delete(struct netmap_interp_list *il, struct netmap_interp_list_elem *e,
+nm_jp_list_delete(struct nm_jp_list *il, struct nm_jp_list_elem *e,
 		char *pool)
 {
 	if (il->delete == NULL)
-		return netmap_interp_error(pool, "'delete' not supported");
+		return nm_jp_error(pool, "'delete' not supported");
 	if (!e->have_ref)
-		return netmap_interp_error(pool, "busy");
+		return nm_jp_error(pool, "busy");
 	il->delete(e->ip);
 	e->have_ref = 0;
 	return jslr_new_object(pool, 0);
 }
 
-static struct netmap_interp_list_elem *
-netmap_interp_list_search(struct netmap_interp_list *il, const char *name);
+static struct nm_jp_list_elem *
+nm_jp_list_search(struct nm_jp_list *il, const char *name);
 
 static struct _jpo
-netmap_interp_list_new(struct netmap_interp_list *il, struct _jpo *pn, char *pool)
+nm_jp_list_new(struct nm_jp_list *il, struct _jpo *pn, char *pool)
 {
-	struct netmap_interp_list_elem *e = NULL;
-	struct netmap_interp *ip;
+	struct nm_jp_list_elem *e = NULL;
+	struct nm_jp *ip;
 	struct _jpo o;
 	int error;
 
 	if (il->new == NULL) {
-		o = netmap_interp_error(pool, "not supported");
+		o = nm_jp_error(pool, "not supported");
 		goto out;
 	}
-	e = netmap_interp_list_new_elem(il);
+	e = nm_jp_list_new_elem(il);
 	if (e == NULL) {
-		o = netmap_interp_error(pool, "out of memory");
+		o = nm_jp_error(pool, "out of memory");
 		goto out;
 	}
 	error = il->new(e);
 	if (error || e->ip == NULL) {
-		o = netmap_interp_error(pool, "error: %d", error);
+		o = nm_jp_error(pool, "error: %d", error);
 		goto out;
 	}
 	*pn++ = jslr_new_string(pool, e->name);
 	ip = e->ip;
-	netmap_interp_bracket(ip, 0);
+	nm_jp_bracket(ip, 0);
 	if (ip->interp) {
 		o = ip->interp(ip, *pn, pool);
 		if (o.ty == JPO_ERR)
 			goto leave;
-		netmap_interp_bracket(ip, 1);
+		nm_jp_bracket(ip, 1);
 	}
 	o = ip->dump(ip, pool);
 leave:
-	netmap_interp_bracket(ip, 2);
+	nm_jp_bracket(ip, 2);
 	e->have_ref = 1;
 out:
 	return o;
@@ -746,20 +746,20 @@ out:
 
 
 static struct _jpo
-netmap_interp_list_interp(struct netmap_interp *ip, struct _jpo r, char *pool)
+nm_jp_list_interp(struct nm_jp *ip, struct _jpo r, char *pool)
 {
 	struct _jpo *po;
 	int i, len, ty = r.len;
-	struct netmap_interp_list *il = (struct netmap_interp_list *)ip;
+	struct nm_jp_list *il = (struct nm_jp_list *)ip;
 
 	if (r.ty != JPO_PTR || ty != JPO_OBJECT) {
-		r = netmap_interp_error(pool, "need object");
+		r = nm_jp_error(pool, "need object");
 		goto out;
 	}
 
 	po = jslr_get_object(pool, r);
 	if (po == NULL || po->ty != ty) {
-		r = netmap_interp_error(pool, "internal error");
+		r = nm_jp_error(pool, "internal error");
 		goto out;
 	}
 
@@ -768,30 +768,30 @@ netmap_interp_list_interp(struct netmap_interp *ip, struct _jpo r, char *pool)
 	for (i = 0; i < len; i++) {
 		struct _jpo r1;
 		const char *name = jslr_get_string(pool, *po);
-		struct netmap_interp_list_elem *e;
+		struct nm_jp_list_elem *e;
 
 		if (name == NULL) {
-			r = netmap_interp_error(pool, "internal error");
+			r = nm_jp_error(pool, "internal error");
 			goto out;
 		}
 		if (strcmp(name, "new") == 0) {
-			r1 = netmap_interp_list_new(il, po, pool);
+			r1 = nm_jp_list_new(il, po, pool);
 			po++;
 			goto next;
 		}
-		e = netmap_interp_list_search(il, name);
+		e = nm_jp_list_search(il, name);
 		if (e == NULL) {
 			po++;
-			r1 = netmap_interp_error(pool, "%s: not found", name);
+			r1 = nm_jp_error(pool, "%s: not found", name);
 			goto next;
 		}
 		po++;
 		D("found %s", name);
-		if (netmap_interp_streq(*po, pool, "delete")) {
-			r1 = netmap_interp_list_delete(il, e, pool);
+		if (nm_jp_streq(*po, pool, "delete")) {
+			r1 = nm_jp_list_delete(il, e, pool);
 			goto next;
 		}
-		r1 = netmap_interp_interp(e->ip, *po, pool);
+		r1 = nm_jp_interp(e->ip, *po, pool);
 	next:
 		*po++ = r1;
 	}
@@ -801,10 +801,10 @@ out:
 }
 
 static struct _jpo
-netmap_interp_list_dump(struct netmap_interp *ip, char *pool)
+nm_jp_list_dump(struct nm_jp *ip, char *pool)
 {
 	struct _jpo *po, r;
-	struct netmap_interp_list *il = (struct netmap_interp_list *)ip;
+	struct nm_jp_list *il = (struct nm_jp_list *)ip;
 	int i, len = il->nextfree;
 
 	r = jslr_new_object(pool, len);
@@ -813,12 +813,12 @@ netmap_interp_list_dump(struct netmap_interp *ip, char *pool)
 	po = jslr_get_object(pool, r);
 	po++;
 	for (i = 0; i < len; i++) {
-		struct netmap_interp_list_elem *e = &il->list[i];
+		struct nm_jp_list_elem *e = &il->list[i];
 		*po = jslr_new_string(pool, e->name);
 		if (po->ty == JPO_ERR)
 			return *po;
 		po++;
-		*po = netmap_interp_dump(e->ip, pool);
+		*po = nm_jp_dump(e->ip, pool);
 		if (po->ty == JPO_ERR)
 			return *po;
 		po++;
@@ -827,10 +827,10 @@ netmap_interp_list_dump(struct netmap_interp *ip, char *pool)
 }
 
 int
-netmap_interp_list_init(struct netmap_interp_list *il, u_int nelem)
+nm_jp_list_init(struct nm_jp_list *il, u_int nelem)
 {
-	il->up.interp = netmap_interp_list_interp;
-	il->up.dump = netmap_interp_list_dump;
+	il->up.interp = nm_jp_list_interp;
+	il->up.dump = nm_jp_list_dump;
 	il->minelem = nelem;
 	il->list = malloc(sizeof(*il->list) * nelem, M_DEVBUF, M_ZERO);
 	if (il->list == NULL)
@@ -841,16 +841,16 @@ netmap_interp_list_init(struct netmap_interp_list *il, u_int nelem)
 }
 
 void
-netmap_interp_list_uninit(struct netmap_interp_list *il)
+nm_jp_list_uninit(struct nm_jp_list *il)
 {
 	free(il->list, M_DEVBUF);
 	memset(il, 0, sizeof(*il));
 }
 
-struct netmap_interp_list_elem *
-netmap_interp_list_new_elem(struct netmap_interp_list *il)
+struct nm_jp_list_elem *
+nm_jp_list_new_elem(struct nm_jp_list *il)
 {
-	struct netmap_interp_list_elem *newlist;
+	struct nm_jp_list_elem *newlist;
 
 	if (il->nextfree >= il->nelem) {
 		u_int newnelem = il->nelem * 2;
@@ -865,8 +865,8 @@ netmap_interp_list_new_elem(struct netmap_interp_list *il)
 }
 
 int
-netmap_interp_list_elem_fill(struct netmap_interp_list_elem *e,
-		struct netmap_interp *ip,
+nm_jp_list_elem_fill(struct nm_jp_list_elem *e,
+		struct nm_jp *ip,
 		const char *fmt, ...)
 {
 	va_list ap;
@@ -884,9 +884,9 @@ netmap_interp_list_elem_fill(struct netmap_interp_list_elem *e,
 }
 
 static int
-_netmap_interp_list_del(struct netmap_interp_list *il, struct netmap_interp_list_elem *e1)
+_nm_jp_list_del(struct nm_jp_list *il, struct nm_jp_list_elem *e1)
 {
-	struct netmap_interp_list_elem *e2;
+	struct nm_jp_list_elem *e2;
 
 	il->nextfree--;
 	e2 = &il->list[il->nextfree];
@@ -896,7 +896,7 @@ _netmap_interp_list_del(struct netmap_interp_list *il, struct netmap_interp_list
 	}
 	memset(e2, 0, sizeof(*e2));
 	if (il->nelem > il->minelem && il->nextfree < il->nelem / 2) {
-		struct netmap_interp_list_elem *newlist;
+		struct nm_jp_list_elem *newlist;
 		u_int newnelem = il->nelem / 2;
 		if (newnelem < il->minelem)
 			newnelem = il->minelem;
@@ -912,25 +912,25 @@ _netmap_interp_list_del(struct netmap_interp_list *il, struct netmap_interp_list
 }
 
 int
-netmap_interp_list_del(struct netmap_interp_list *il, struct netmap_interp *ip)
+nm_jp_list_del(struct nm_jp_list *il, struct nm_jp *ip)
 {
-	struct netmap_interp_list_elem *e;
+	struct nm_jp_list_elem *e;
 
 	for (e = il->list; e != il->list + il->nextfree; e++)
 		if (e->ip == ip)
 			goto found;
 	return ENOENT;
 found:
-	return _netmap_interp_list_del(il, e);
+	return _nm_jp_list_del(il, e);
 }
 
 
-static struct netmap_interp_list_elem *
-netmap_interp_list_search(struct netmap_interp_list *il, const char *name)
+static struct nm_jp_list_elem *
+nm_jp_list_search(struct nm_jp_list *il, const char *name)
 {
 	int i;
 	for (i = 0; i < il->nextfree; i++) {
-		struct netmap_interp_list_elem *e = &il->list[i];
+		struct nm_jp_list_elem *e = &il->list[i];
 		if (strncmp(name, e->name, NETMAP_CONFIG_MAXNAME) == 0)
 			break;
 	}
@@ -940,11 +940,11 @@ netmap_interp_list_search(struct netmap_interp_list *il, const char *name)
 }
 
 static int64_t
-netmap_interp_num_getvar(struct netmap_interp_num *in)
+nm_jp_num_getvar(struct nm_jp_num *in)
 {
 	switch (in->size) {
 	case 0:
-		return ((netmap_interp_num_reader)in->var)(in);
+		return ((nm_jp_num_reader)in->var)(in);
 	case 1:
 		return *(int8_t*)in->var;
 	case 2:
@@ -960,7 +960,7 @@ netmap_interp_num_getvar(struct netmap_interp_num *in)
 }
 
 int
-netmap_interp_num_update(struct netmap_interp_num *in, int64_t v)
+nm_jp_num_update(struct nm_jp_num *in, int64_t v)
 {
 	switch (in->size) {
 	case 1:
@@ -982,49 +982,49 @@ netmap_interp_num_update(struct netmap_interp_num *in, int64_t v)
 }
 
 static struct _jpo
-netmap_interp_num_interp(struct netmap_interp *ip, struct _jpo r, char *pool)
+nm_jp_num_interp(struct nm_jp *ip, struct _jpo r, char *pool)
 {
 	int64_t v, nv;
-	struct netmap_interp_num *in = (struct netmap_interp_num *)ip;
+	struct nm_jp_num *in = (struct nm_jp_num *)ip;
 	int error;
 
 	if (r.ty != JPO_NUM) {
-		r = netmap_interp_error(pool, "need number");
+		r = nm_jp_error(pool, "need number");
 		goto done;
 	}
 
 	nv = jslr_get_num(pool, r);
-	v = netmap_interp_num_getvar(in);
+	v = nm_jp_num_getvar(in);
 	if (v == nv)
 		goto done;
 	if (in->update == NULL) {
-		r = netmap_interp_error(pool, "read-only");
+		r = nm_jp_error(pool, "read-only");
 		goto done;
 	}
 	error = in->update(in, nv);
 	if (error)
-		r = netmap_interp_error(pool, "invalid; %ld", nv);
+		r = nm_jp_error(pool, "invalid; %ld", nv);
 	r = ip->dump(ip, pool);
 done:
 	return r;
 }
 
 static struct _jpo
-netmap_interp_num_dump(struct netmap_interp *ip, char *pool)
+nm_jp_num_dump(struct nm_jp *ip, char *pool)
 {
-	struct netmap_interp_num *in = (struct netmap_interp_num*)ip;
-	int64_t v = netmap_interp_num_getvar(in);
+	struct nm_jp_num *in = (struct nm_jp_num*)ip;
+	int64_t v = nm_jp_num_getvar(in);
 
 	return jslr_new_num(pool, v);
 }
 
 
 int
-netmap_interp_num_init(struct netmap_interp_num *in, void *var, size_t size,
-		int (*update)(struct netmap_interp_num *, int64_t))
+nm_jp_num_init(struct nm_jp_num *in, void *var, size_t size,
+		int (*update)(struct nm_jp_num *, int64_t))
 {
-	in->up.interp = netmap_interp_num_interp;
-	in->up.dump = netmap_interp_num_dump;
+	in->up.interp = nm_jp_num_interp;
+	in->up.dump = nm_jp_num_dump;
 	in->var = var;
 	in->size = size;
 	in->update = update;
@@ -1032,7 +1032,7 @@ netmap_interp_num_init(struct netmap_interp_num *in, void *var, size_t size,
 }
 
 int
-netmap_interp_num_uninit(struct netmap_interp_num *in)
+nm_jp_num_uninit(struct nm_jp_num *in)
 {
 	return 0;
 }
