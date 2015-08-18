@@ -270,18 +270,18 @@ struct netmap_confbuf {
 
 #include "jsonlr.h"
 
-struct netmap_config {
+struct nm_conf {
 	NM_MTX_T mux;
 	struct netmap_confbuf buf[2]; /* 0 in, 1 out */
 	int written;
 	int (*dump)(const char *pool, struct _jpo*, struct netmap_confbuf *);
 };
-void netmap_config_init(struct netmap_config*);
-void netmap_config_uninit(struct netmap_config*, int locked);
+void nm_conf_init(struct nm_conf*);
+void nm_conf_uninit(struct nm_conf*, int locked);
 struct uio;
-int netmap_config_read(struct netmap_config *, struct uio *);
-int netmap_config_write(struct netmap_config *, struct uio *);
-int netmap_config_parse(struct netmap_config*, int locked);
+int nm_conf_read(struct nm_conf *, struct uio *);
+int nm_conf_write(struct nm_conf *, struct uio *);
+int nm_conf_parse(struct nm_conf*, int locked);
 
 struct netmap_interp {
 	struct _jpo (*interp)(struct netmap_interp *, struct _jpo, char *pool);
@@ -369,9 +369,9 @@ extern struct netmap_interp_list netmap_interp_ports;
 
 #else /* ! WITH_NMCONF */
 
-struct netmap_config {};
-#define netmap_config_init(_a)		((void)(_a))
-#define netmap_config_uninit(_a, _l)	((void)(_a))
+struct nm_conf {};
+#define nm_conf_init(_a)		((void)(_a))
+#define nm_conf_uninit(_a, _l)	((void)(_a))
 
 #endif /* WITH_NMCONF */
 
@@ -1837,7 +1837,7 @@ struct netmap_priv_d {
 	NM_SELINFO_T *np_si[NR_TXRX];
 	struct thread	*np_td;		/* kqueue, just debugging */
 
-	struct netmap_config	conf;
+	struct nm_conf	conf;
 };
 
 struct netmap_priv_d *netmap_priv_new(void);

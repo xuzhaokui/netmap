@@ -493,7 +493,7 @@ int netmap_flags = 0;	/* debug flags */
 static int netmap_fwd = 0;	/* force transparent mode */
 
 #ifdef WITH_NMCONF
-int netmap_config_flat_mode = 0;
+int nm_conf_flat_mode = 0;
 #endif
 
 /*
@@ -538,7 +538,7 @@ SYSCTL_INT(_dev_netmap, OID_AUTO, generic_ringsize, CTLFLAG_RW, &netmap_generic_
 SYSCTL_INT(_dev_netmap, OID_AUTO, generic_rings, CTLFLAG_RW, &netmap_generic_rings, 0 , "");
 
 #ifdef WITH_NMCONF
-SYSCTL_INT(_dev_netmap, OID_AUTO, confmode, CTLFLAG_RW, &netmap_config_flat_mode, 0 , "");
+SYSCTL_INT(_dev_netmap, OID_AUTO, confmode, CTLFLAG_RW, &nm_conf_flat_mode, 0 , "");
 #endif
 
 SYSEND;
@@ -979,7 +979,7 @@ netmap_priv_new(void)
 	if (priv == NULL)
 		return NULL;
 	priv->np_refs = 1;
-	netmap_config_init(&priv->conf);
+	nm_conf_init(&priv->conf);
 	netmap_use_count++;
 	return priv;
 }
@@ -1003,7 +1003,7 @@ netmap_priv_delete(struct netmap_priv_d *priv)
 		return;
 	}
 	netmap_use_count--;
-	netmap_config_uninit(&priv->conf, 1 /* locked */);
+	nm_conf_uninit(&priv->conf, 1 /* locked */);
 	if (na) {
 		netmap_do_unregif(priv);
 	}
@@ -3361,7 +3361,7 @@ static struct _jpo
 netmap_interp_mode_dump(struct netmap_interp *ip, char *pool)
 {
 	return jslr_new_string(pool,
-			netmap_config_flat_mode ? "flat" : "json");
+			nm_conf_flat_mode ? "flat" : "json");
 }
 struct netmap_interp_list netmap_interp_root;
 struct netmap_interp_list netmap_interp_ports;

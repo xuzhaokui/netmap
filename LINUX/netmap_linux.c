@@ -774,7 +774,7 @@ linux_netmap_write(struct file *filp, const char __user *buf,
 	int err;
 
 	ND("buf %p count %zd", buf, count);
-	err = netmap_config_write(&priv->conf, &uio);
+	err = nm_conf_write(&priv->conf, &uio);
 	ND("err %d uio.uio_resid %d", err, uio.uio_resid);
 	if (err)
 		return -err;
@@ -793,7 +793,7 @@ linux_netmap_read(struct file *filp, char __user *buf,
 	};
 	int err;
 
-	err = netmap_config_read(&priv->conf, &uio);
+	err = nm_conf_read(&priv->conf, &uio);
 	ND("err %d uio.uio_resid %d", err, uio.uio_resid);
 	if (err)
 		return -err;

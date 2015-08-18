@@ -294,33 +294,33 @@ netmap_confbuf_destroy(struct netmap_confbuf *cb)
 	memset(cb, 0, sizeof(*cb));
 }
 
-static int netmap_config_dump_json(const char *pool, struct _jpo*,
+static int nm_conf_dump_json(const char *pool, struct _jpo*,
 		struct netmap_confbuf *);
-static int netmap_config_dump_flat(const char *pool, struct _jpo*,
+static int nm_conf_dump_flat(const char *pool, struct _jpo*,
 		struct netmap_confbuf *);
-extern int netmap_config_flat_mode;
+extern int nm_conf_flat_mode;
 void
-netmap_config_init(struct netmap_config *c)
+nm_conf_init(struct nm_conf *c)
 {
 	NM_MTX_INIT(c->mux);
-	c->dump = (netmap_config_flat_mode ?
-	           netmap_config_dump_flat :
-		   netmap_config_dump_json);
+	c->dump = (nm_conf_flat_mode ?
+	           nm_conf_dump_flat :
+		   nm_conf_dump_json);
 }
 
 void
-netmap_config_uninit(struct netmap_config *c, int locked)
+nm_conf_uninit(struct nm_conf *c, int locked)
 {
 	int i;
 	
-	(void)netmap_config_parse(c, locked);
+	(void)nm_conf_parse(c, locked);
 	for (i = 0; i < 2; i++)
 		netmap_confbuf_destroy(c->buf + i);
 	NM_MTX_DESTROY(c->mux);
 }
 
 static int
-netmap_config_dump_json_rec(const char *pool, struct _jpo *r,
+nm_conf_dump_json_rec(const char *pool, struct _jpo *r,
 		struct netmap_confbuf *out, int ind, int cont)
 {
 	int i, error = 0;
@@ -342,7 +342,7 @@ again:
 			if (!error)
 				error = netmap_confbuf_printf(out, "\n");
 			if (!error)
-				error = netmap_config_dump_json_rec(pool, r + 1 + i,
+				error = nm_conf_dump_json_rec(pool, r + 1 + i,
 					out, ind + 1, 0);
 		}
 		if (!error)
@@ -362,7 +362,7 @@ again:
 					"\"%s\": ",
 					jslr_get_string(pool, *(r + 1 + i)));
 			if (!error)
-				error = netmap_config_dump_json_rec(pool, r + 2 + i,
+				error = nm_conf_dump_json_rec(pool, r + 2 + i,
 					out, ind + 1, 1);
 		}
 		if (!error)
@@ -390,12 +390,12 @@ again:
 }
 
 static int
-netmap_config_dump_json(const char *pool, struct _jpo* r,
+nm_conf_dump_json(const char *pool, struct _jpo* r,
 		struct netmap_confbuf *cb)
 {
 	int error;
 
-	error = netmap_config_dump_json_rec(pool, r, cb, 0, 0);
+	error = nm_conf_dump_json_rec(pool, r, cb, 0, 0);
 	if (error)
 		return error;
 	netmap_confbuf_printf(cb, "\n");
@@ -425,7 +425,7 @@ nm_flat_prefix_append(struct nm_flat_prefix *st, const char *fmt, ...)
 }
 
 static int
-netmap_config_dump_flat_rec(const char *pool, struct _jpo *r,
+nm_conf_dump_flat_rec(const char *pool, struct _jpo *r,
 		struct netmap_confbuf *out, const struct nm_flat_prefix *st)
 {
 	int i, error = 0;
@@ -445,7 +445,7 @@ again:
 			lst = *st;
 			error = nm_flat_prefix_append(&lst, ".%d", i);
 			if (!error)
-				error = netmap_config_dump_flat_rec(pool, r + 1 + i,
+				error = nm_conf_dump_flat_rec(pool, r + 1 + i,
 					out, &lst);
 		}
 		break;
@@ -455,7 +455,7 @@ again:
 			error = nm_flat_prefix_append(&lst, ".%s",
 					jslr_get_string(pool, *(r + 1 + i)));
 			if (!error)
-				error = netmap_config_dump_flat_rec(pool, r + 2 + i,
+				error = nm_conf_dump_flat_rec(pool, r + 2 + i,
 					out, &lst);
 		}
 		break;
@@ -479,7 +479,7 @@ again:
 }
 
 static int
-netmap_config_dump_flat(const char *pool, struct _jpo *r,
+nm_conf_dump_flat(const char *pool, struct _jpo *r,
 		struct netmap_confbuf *cb)
 {
 	char buf[128];
@@ -489,7 +489,7 @@ netmap_config_dump_flat(const char *pool, struct _jpo *r,
 		.avail = 128
 	};
 
-	return netmap_config_dump_flat_rec(pool, r, cb, &lst);
+	return nm_conf_dump_flat_rec(pool, r, cb, &lst);
 }
 
 #define NETMAP_CONFIG_POOL_SIZE (1<<12)
@@ -498,7 +498,7 @@ static struct _jpo netmap_interp_interp(struct netmap_interp *,
 		struct _jpo, char *);
 
 int
-netmap_config_parse(struct netmap_config *c, int locked)
+nm_conf_parse(struct nm_conf *c, int locked)
 {
 	char *pool;
 	uint32_t pool_len = NETMAP_CONFIG_POOL_SIZE;
@@ -541,7 +541,7 @@ out:
 }
 
 int
-netmap_config_write(struct netmap_config *c, struct uio *uio)
+nm_conf_write(struct nm_conf *c, struct uio *uio)
 {
 	int ret = 0;
 	struct netmap_confbuf *i = &c->buf[0],
@@ -573,7 +573,7 @@ out:
 }
 
 int
-netmap_config_read(struct netmap_config *c, struct uio *uio)
+nm_conf_read(struct nm_conf *c, struct uio *uio)
 {
 	int ret = 0;
 	struct netmap_confbuf *i = &c->buf[0],
@@ -586,7 +586,7 @@ netmap_config_read(struct netmap_config *c, struct uio *uio)
 		c->written = 1;
 	}
 
-	ret = netmap_config_parse(c, 0 /* not locked */);
+	ret = nm_conf_parse(c, 0 /* not locked */);
 	if (ret)
 		goto out;
 
