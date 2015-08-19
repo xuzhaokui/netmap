@@ -2715,6 +2715,9 @@ nm_jp_flags_dump(struct nm_jp *ip, char *pool)
 		case NAF_PTNETMAP_HOST:
 			fs = "ptnemtap-host";
 			break;
+		case NAF_ZOMBIE:
+			fs = "zombie";
+			break;
 		case NAF_BUSY:
 			fs = "busy";
 			break;
