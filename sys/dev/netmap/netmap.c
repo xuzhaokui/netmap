@@ -2646,16 +2646,8 @@ nm_jp_port_uninit(struct netmap_adapter *na)
 {
 	struct nm_jp_list *il = &na->ip;
 
-	NM_JP_LDEL_NUM(il, &na->ip_num_tx_rings);
-	NM_JP_LDEL_NUM(il, &na->ip_num_rx_rings);
-	NM_JP_LDEL_NUM(il, &na->ip_num_tx_desc);
-	NM_JP_LDEL_NUM(il, &na->ip_num_rx_desc);
-	NM_JP_LDEL_NUM(il, &na->ip_mem);
-	NM_JP_LDEL_NUM(il, &na->ip_users);
-	nm_jp_ldel(il, &na->ip_flags);
-	nm_jp_ldel(il, &na->ring_ip.up);
-	nm_jp_luninit(&na->ring_ip);
 	nm_jp_ldel(&nm_jp_ports, &il->up);
+	nm_jp_luninit(&na->ring_ip);
 	nm_jp_luninit(il);
 }
 
@@ -2765,49 +2757,32 @@ nm_jp_port_init(struct netmap_adapter *na)
 	int error = 0;
 	struct nm_jp_list *il = &na->ip;
 
+	/* pre allocate enough fields so that we do not
+	 * have to check for errors afer each ladd
+	 */
 	error = nm_jp_linit(il, 10);
-	if (error)
-		goto fail;
-	error = nm_jp_ladd(&nm_jp_ports, &il->up, na->name);
-	if (error)
-		goto fail;
-	error = NM_JP_LADD_RONUM(il, &na->ip_users, na->active_fds, "users");
-	if (error)
-		goto fail;
-	error = nm_jp_ninit(&na->ip_mem,
-			nm_jp_memid_read, 0,
-			nm_jp_memid_update);
-	if (error)
-		goto fail;
-	error = nm_jp_ladd(il, &na->ip_mem.up, "mem");
 	if (error)
 		goto fail;
 	error = nm_jp_linit(&na->ring_ip, 10);
 	if (error)
 		goto fail;
+	nm_jp_ninit(&na->ip_mem, nm_jp_memid_read, 0, nm_jp_memid_update);
 	na->ip_flags.dump = nm_jp_flags_dump;
-	error = nm_jp_ladd(il, &na->ip_flags, "flags");
-	if (error)
-		goto fail;
-	error = NM_JP_LADD_RONUM(il, &na->ip_num_tx_rings,
+
+	nm_jp_ladd(&nm_jp_ports, &il->up, na->name);
+	NM_JP_LADD_RONUM(il, &na->ip_users, na->active_fds, "users");
+	nm_jp_ladd(il, &na->ip_mem.up, "mem");
+	nm_jp_ladd(il, &na->ip_flags, "flags");
+	NM_JP_LADD_RONUM(il, &na->ip_num_tx_rings,
 			na->num_tx_rings, "num-tx-rings");
-	if (error)
-		goto fail;
-	error = NM_JP_LADD_RONUM(il, &na->ip_num_rx_rings,
+	NM_JP_LADD_RONUM(il, &na->ip_num_rx_rings,
 			na->num_rx_rings, "num-rx-rings");
-	if (error)
-		goto fail;
-	error = NM_JP_LADD_RONUM(il, &na->ip_num_tx_desc,
+	NM_JP_LADD_RONUM(il, &na->ip_num_tx_desc,
 			na->num_tx_desc, "num-tx-desc");
-	if (error)
-		goto fail;
-	error = NM_JP_LADD_RONUM(il, &na->ip_num_rx_desc,
+	NM_JP_LADD_RONUM(il, &na->ip_num_rx_desc,
 			na->num_rx_desc, "num-rx-desc");
-	if (error)
-		goto fail;
-	error = nm_jp_ladd(il, &na->ring_ip.up, "rings");
-	if (error)
-		goto fail;
+	nm_jp_ladd(il, &na->ring_ip.up, "rings");
+
 	return 0;
 
 fail:
