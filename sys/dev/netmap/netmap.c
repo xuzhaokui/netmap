@@ -912,6 +912,16 @@ netmap_do_unregif(struct netmap_priv_d *priv)
 	struct netmap_adapter *na = priv->np_na;
 
 	NMG_LOCK_ASSERT();
+
+#ifdef WITH_NMCONF
+	{
+		enum txrx t;
+		for_rx_tx(t) {
+			nm_jp_ldel(&priv->ip, &priv->ip_qfirst[t].up);
+			nm_jp_ldel(&priv->ip, &priv->ip_qlast[t].up);
+		}
+	}
+#endif
 	na->active_fds--;
 	/* release exclusive use if it was requested on regif */
 	netmap_rel_exclusive(priv);
@@ -1790,6 +1800,17 @@ netmap_interp_ringid(struct netmap_priv_d *priv, uint16_t ringid, uint32_t flags
 			priv->np_qlast[NR_RX],
 			i);
 	}
+
+#ifdef WITH_NMCONF
+	for_rx_tx(t) {
+		NM_JP_LADD_RONUM(&priv->ip, &priv->ip_qfirst[t],
+				priv->np_qfirst[t],
+				"%s-first", nm_txrx2str(t));
+		NM_JP_LADD_RONUM(&priv->ip, &priv->ip_qlast[t],
+				priv->np_qlast[t],
+				"%s-last", nm_txrx2str(t));
+	}
+#endif
 	return 0;
 }
 

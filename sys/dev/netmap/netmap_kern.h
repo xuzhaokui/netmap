@@ -1832,6 +1832,8 @@ struct netmap_priv_d {
 	struct nm_conf	conf;
 	struct nm_jp_list ip;
 	struct nm_jp ip_na;
+	struct nm_jp_num ip_qfirst[NR_TXRX];
+	struct nm_jp_num ip_qlast[NR_TXRX];
 #endif
 };
 
