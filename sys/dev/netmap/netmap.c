@@ -3383,7 +3383,6 @@ netmap_fini(void)
 	netmap_mem_fini();
 	NMG_LOCK_DESTROY();
 #ifdef WITH_NMCONF
-	nm_jp_ldel(&nm_jp_root, &nm_jp_ports.up);
 	nm_jp_luninit(&nm_jp_ports);
 	nm_jp_luninit(&nm_jp_root);
 #endif /* WITH_NMCONF */
@@ -3399,27 +3398,18 @@ netmap_init(void)
 	NMG_LOCK_INIT();
 
 #ifdef WITH_NMCONF
-	error = nm_jp_linit(&nm_jp_root, 4);
+	error = nm_jp_linit(&nm_jp_root, 6);
 	if (error)
 		goto fail;
 	nm_jp_version.dump = netmap_version_dump;
-	error = nm_jp_ladd(&nm_jp_root,
-			&nm_jp_version, "version");
-	if (error)
-		goto fail;
+	nm_jp_ladd(&nm_jp_root, &nm_jp_version, "version");
 	nm_jp_mode.dump = nm_jp_mode_dump;
 	nm_jp_mode.interp = nm_jp_mode_interp;
-	error = nm_jp_ladd(&nm_jp_root,
-			&nm_jp_mode, "output-mode");
-	if (error)
-		goto fail;
+	m_jp_ladd(&nm_jp_root, &nm_jp_mode, "output-mode");
 	error = nm_jp_linit(&nm_jp_ports, 10);
 	if (error)
 		goto fail;
-	error = nm_jp_ladd(&nm_jp_root,
-			&nm_jp_ports.up, "port");
-	if (error)
-		goto fail;
+	nm_jp_ladd(&nm_jp_root, &nm_jp_ports.up, "port");
 #endif /* WITH_NMCONF */
 
 	error = netmap_mem_init();
