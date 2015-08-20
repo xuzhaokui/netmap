@@ -284,6 +284,7 @@ int nm_conf_read(struct nm_conf *, struct uio *);
 int nm_conf_write(struct nm_conf *, struct uio *);
 int nm_conf_parse(struct nm_conf*, int locked);
 const char *nm_conf_get_output_mode(struct nm_conf *);
+int nm_conf_set_output_mode(struct nm_conf *, const char *);
 
 struct nm_jp {
 	struct _jpo (*interp)(struct nm_jp *, struct _jpo, struct nm_conf *);

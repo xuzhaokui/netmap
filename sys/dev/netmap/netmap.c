@@ -3342,6 +3342,17 @@ nm_jp_mode_dump(struct nm_jp *ip, struct nm_conf *c)
 	return jslr_new_string(c->pool,
 			nm_conf_get_output_mode(c));
 }
+static struct _jpo
+nm_jp_mode_interp(struct nm_jp *ip, struct _jpo r, struct nm_conf *c)
+{
+	char *pool = c->pool;
+
+	if (r.ty != JPO_STRING)
+		return nm_jp_error(pool, "need string");
+	if (nm_conf_set_output_mode(c, jslr_get_string(pool, r)))
+		return nm_jp_error(pool, "unknown mode");
+	return r;
+}
 struct nm_jp_list nm_jp_root;
 struct nm_jp_list nm_jp_ports;
 #endif /* WITH_NMCONF */
@@ -3397,6 +3408,7 @@ netmap_init(void)
 	if (error)
 		goto fail;
 	nm_jp_mode.dump = nm_jp_mode_dump;
+	nm_jp_mode.interp = nm_jp_mode_interp;
 	error = nm_jp_ladd(&nm_jp_root,
 			&nm_jp_mode, "output-mode");
 	if (error)

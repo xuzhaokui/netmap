@@ -316,6 +316,19 @@ nm_conf_get_output_mode(struct nm_conf *c)
 		"unknown"));
 }
 
+int
+nm_conf_set_output_mode(struct nm_conf *c, const char *mode)
+{
+	if (strcmp(mode, "json") == 0) {
+		c->dump = nm_conf_dump_json;
+	} else if (strcmp(mode, "flat") == 0) {
+		c->dump = nm_conf_dump_flat;
+	} else {
+		return EINVAL;
+	}
+	return 0;
+}
+
 void
 nm_conf_uninit(struct nm_conf *c, int locked)
 {
