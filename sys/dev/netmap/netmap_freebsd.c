@@ -1394,7 +1394,7 @@ freebsd_netmap_read(struct cdev *dev __unused, struct uio *uio, int ioflag __unu
 	if (error)
 		return error;
 
-	return netmap_config_read(&priv->conf, uio);
+	return nm_conf_read(&priv->conf, uio);
 }
 
 static int
@@ -1407,7 +1407,7 @@ freebsd_netmap_write(struct cdev *dev __unused, struct uio *uio, int ioflag __un
 	if (error)
 		return error;
 
-	return netmap_config_write(&priv->conf, uio);
+	return nm_conf_write(&priv->conf, uio);
 }
 
 #endif /* WITH_NMCONF */

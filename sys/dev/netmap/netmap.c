@@ -1004,7 +1004,7 @@ netmap_priv_new(void)
 #ifdef WITH_NMCONF
 	nm_conf_init(&priv->conf);
 	if (nm_jp_linit(&priv->ip, 10)) {
-		free(priv, M_DEV);
+		free(priv, M_DEVBUF);
 		return NULL;
 	}
 	priv->ip_na.dump = netmap_priv_jp_na_dump;
@@ -3372,7 +3372,7 @@ netmap_rx_irq(struct ifnet *ifp, u_int q, u_int *work_done)
 }
 
 #ifdef WITH_NMCONF
-#include "netmap_version.h"
+#include <netmap_version.h>
 struct nm_jp nm_jp_version;
 static struct _jpo
 netmap_version_dump(struct nm_jp *ip, struct nm_conf *c)
