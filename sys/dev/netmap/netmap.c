@@ -2666,12 +2666,13 @@ nm_jp_memid_read(struct nm_jp_num *in)
 }
 
 static struct _jpo
-nm_jp_flags_dump(struct nm_jp *ip, char *pool)
+nm_jp_flags_dump(struct nm_jp *ip, struct nm_conf *c)
 {
 	struct netmap_adapter *na =
 		container_of(ip, struct netmap_adapter, ip_flags);
 	uint32_t f, flags;
 	struct _jpo r, *po;
+	char *pool = c->pool;
 	int len = 0;
 
 	for (flags = na->na_flags; flags; flags >>= 1)
@@ -3330,16 +3331,16 @@ netmap_rx_irq(struct ifnet *ifp, u_int q, u_int *work_done)
 #include "netmap_version.h"
 struct nm_jp nm_jp_version;
 static struct _jpo
-netmap_version_dump(struct nm_jp *ip, char *pool)
+netmap_version_dump(struct nm_jp *ip, struct nm_conf *c)
 {
-	return jslr_new_string(pool, NETMAP_VERSION);
+	return jslr_new_string(c->pool, NETMAP_VERSION);
 }
 struct nm_jp nm_jp_mode;
 static struct _jpo
-nm_jp_mode_dump(struct nm_jp *ip, char *pool)
+nm_jp_mode_dump(struct nm_jp *ip, struct nm_conf *c)
 {
-	return jslr_new_string(pool,
-			nm_conf_flat_mode ? "flat" : "json");
+	return jslr_new_string(c->pool,
+			nm_conf_get_output_mode(c));
 }
 struct nm_jp_list nm_jp_root;
 struct nm_jp_list nm_jp_ports;

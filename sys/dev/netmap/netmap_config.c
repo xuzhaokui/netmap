@@ -308,6 +308,14 @@ nm_conf_init(struct nm_conf *c)
 		   nm_conf_dump_json);
 }
 
+const char *
+nm_conf_get_output_mode(struct nm_conf *c)
+{
+	return (c->dump == nm_conf_dump_json ? "json" :
+	       (c->dump == nm_conf_dump_flat ? "flat" :
+		"unknown"));
+}
+
 void
 nm_conf_uninit(struct nm_conf *c, int locked)
 {
@@ -495,12 +503,11 @@ nm_conf_dump_flat(const char *pool, struct _jpo *r,
 #define NETMAP_CONFIG_POOL_SIZE (1<<12)
 
 static struct _jpo nm_jp_interp(struct nm_jp *,
-		struct _jpo, char *);
+		struct _jpo, struct nm_conf *c);
 
 int
 nm_conf_parse(struct nm_conf *c, int locked)
 {
-	char *pool;
 	uint32_t pool_len = NETMAP_CONFIG_POOL_SIZE;
 	struct nm_confb *i = &c->buf[0],
 			      *o = &c->buf[1];
@@ -518,10 +525,10 @@ nm_conf_parse(struct nm_conf *c, int locked)
 	if (nm_confb_empty(i))
 		return 0;
 
-	pool = malloc(pool_len, M_DEVBUF, M_ZERO);
-	if (pool == NULL)
+	c->pool = malloc(pool_len, M_DEVBUF, M_ZERO);
+	if (c->pool == NULL)
 		return ENOMEM;
-	r = jslr_parse(&njs.stream, pool, pool_len);
+	r = jslr_parse(&njs.stream, c->pool, pool_len);
 	if (r.ty == JPO_ERR) {
 		D("parse error: %d", r.ptr);
 		nm_confb_destroy(i);
@@ -530,13 +537,14 @@ nm_conf_parse(struct nm_conf *c, int locked)
 	D("parse OK: ty %u len %u ptr %u", r.ty, r.len, r.ptr);
 	if (!locked)
 		NMG_LOCK();
-	r = nm_jp_interp(&nm_jp_root.up, r, pool);
+	r = nm_jp_interp(&nm_jp_root.up, r, c);
 	if (!locked)
 		NMG_UNLOCK();
-	error = c->dump(pool, &r, o);
+	error = c->dump(c->pool, &r, o);
 	nm_confb_trunc(o);
 out:
-	free(pool, M_DEVBUF);
+	free(c->pool, M_DEVBUF);
+	c->pool = NULL;
 	return error;
 }
 
@@ -658,33 +666,33 @@ nm_jp_is_dump(struct _jpo r, char *pool)
 }
 
 static void
-nm_jp_bracket(struct nm_jp *ip, int stage)
+nm_jp_bracket(struct nm_jp *ip, int stage, struct nm_conf *c)
 {
 	if (ip->bracket)
-		ip->bracket(ip, stage);
+		ip->bracket(ip, stage, c);
 }
 
 static struct _jpo
-nm_jp_interp(struct nm_jp *ip, struct _jpo r, char *pool)
+nm_jp_interp(struct nm_jp *ip, struct _jpo r, struct nm_conf *c)
 {
-	nm_jp_bracket(ip, 0);
-	if (nm_jp_is_dump(r, pool) || ip->interp == NULL) {
-		r = ip->dump(ip, pool);
+	nm_jp_bracket(ip, 0, c);
+	if (nm_jp_is_dump(r, c->pool) || ip->interp == NULL) {
+		r = ip->dump(ip, c);
 	} else {
-		r = ip->interp(ip, r, pool);
+		r = ip->interp(ip, r, c);
 	}
-	nm_jp_bracket(ip, 2);
+	nm_jp_bracket(ip, 2, c);
 	return r;
 }
 
 static struct _jpo
-nm_jp_dump(struct nm_jp *ip, char *pool)
+nm_jp_dump(struct nm_jp *ip, struct nm_conf *c)
 {
 	struct _jpo r;
 
-	nm_jp_bracket(ip, 0);
-	r = ip->dump(ip, pool);
-	nm_jp_bracket(ip, 2);
+	nm_jp_bracket(ip, 0, c);
+	r = ip->dump(ip, c);
+	nm_jp_bracket(ip, 2, c);
 	return r;
 }
 
@@ -705,7 +713,7 @@ static struct nm_jp_lelem *
 nm_jp_lsearch(struct nm_jp_list *il, const char *name);
 
 static struct _jpo
-nm_jp_lnew(struct nm_jp_list *il, struct _jpo *pn, char *pool)
+nm_jp_lnew(struct nm_jp_list *il, struct _jpo *pn, struct nm_conf *c)
 {
 	struct nm_jp_lelem *e = NULL;
 	struct nm_jp *ip;
@@ -713,31 +721,31 @@ nm_jp_lnew(struct nm_jp_list *il, struct _jpo *pn, char *pool)
 	int error;
 
 	if (il->new == NULL) {
-		o = nm_jp_error(pool, "not supported");
+		o = nm_jp_error(c->pool, "not supported");
 		goto out;
 	}
 	e = nm_jp_lnew_elem(il);
 	if (e == NULL) {
-		o = nm_jp_error(pool, "out of memory");
+		o = nm_jp_error(c->pool, "out of memory");
 		goto out;
 	}
 	error = il->new(e);
 	if (error || e->ip == NULL) {
-		o = nm_jp_error(pool, "error: %d", error);
+		o = nm_jp_error(c->pool, "error: %d", error);
 		goto out;
 	}
-	*pn++ = jslr_new_string(pool, e->name);
+	*pn++ = jslr_new_string(c->pool, e->name);
 	ip = e->ip;
-	nm_jp_bracket(ip, 0);
+	nm_jp_bracket(ip, 0, c);
 	if (ip->interp) {
-		o = ip->interp(ip, *pn, pool);
+		o = ip->interp(ip, *pn, c);
 		if (o.ty == JPO_ERR)
 			goto leave;
-		nm_jp_bracket(ip, 1);
+		nm_jp_bracket(ip, 1, c);
 	}
-	o = ip->dump(ip, pool);
+	o = ip->dump(ip, c);
 leave:
-	nm_jp_bracket(ip, 2);
+	nm_jp_bracket(ip, 2, c);
 	e->have_ref = 1;
 out:
 	return o;
@@ -746,18 +754,19 @@ out:
 
 
 static struct _jpo
-nm_jp_linterp(struct nm_jp *ip, struct _jpo r, char *pool)
+nm_jp_linterp(struct nm_jp *ip, struct _jpo r, struct nm_conf *c)
 {
 	struct _jpo *po;
 	int i, len, ty = r.len;
 	struct nm_jp_list *il = (struct nm_jp_list *)ip;
+	char *pool = c->pool;
 
 	if (r.ty != JPO_PTR || ty != JPO_OBJECT) {
 		r = nm_jp_error(pool, "need object");
 		goto out;
 	}
 
-	po = jslr_get_object(pool, r);
+	po = jslr_get_object(c->pool, r);
 	if (po == NULL || po->ty != ty) {
 		r = nm_jp_error(pool, "internal error");
 		goto out;
@@ -775,7 +784,7 @@ nm_jp_linterp(struct nm_jp *ip, struct _jpo r, char *pool)
 			goto out;
 		}
 		if (strcmp(name, "new") == 0) {
-			r1 = nm_jp_lnew(il, po, pool);
+			r1 = nm_jp_lnew(il, po, c);
 			po++;
 			goto next;
 		}
@@ -791,7 +800,7 @@ nm_jp_linterp(struct nm_jp *ip, struct _jpo r, char *pool)
 			r1 = nm_jp_ldelete(il, e, pool);
 			goto next;
 		}
-		r1 = nm_jp_interp(e->ip, *po, pool);
+		r1 = nm_jp_interp(e->ip, *po, c);
 	next:
 		*po++ = r1;
 	}
@@ -801,11 +810,12 @@ out:
 }
 
 static struct _jpo
-nm_jp_ldump(struct nm_jp *ip, char *pool)
+nm_jp_ldump(struct nm_jp *ip, struct nm_conf *c)
 {
 	struct _jpo *po, r;
 	struct nm_jp_list *il = (struct nm_jp_list *)ip;
 	int i, len = il->nextfree;
+	char *pool = c->pool;
 
 	r = jslr_new_object(pool, len);
 	if (r.ty == JPO_ERR)
@@ -818,7 +828,7 @@ nm_jp_ldump(struct nm_jp *ip, char *pool)
 		if (po->ty == JPO_ERR)
 			return *po;
 		po++;
-		*po = nm_jp_dump(e->ip, pool);
+		*po = nm_jp_dump(e->ip, c);
 		if (po->ty == JPO_ERR)
 			return *po;
 		po++;
@@ -982,11 +992,12 @@ nm_jp_nupdate(struct nm_jp_num *in, int64_t v)
 }
 
 static struct _jpo
-nm_jp_ninterp(struct nm_jp *ip, struct _jpo r, char *pool)
+nm_jp_ninterp(struct nm_jp *ip, struct _jpo r, struct nm_conf *c)
 {
 	int64_t v, nv;
 	struct nm_jp_num *in = (struct nm_jp_num *)ip;
 	int error;
+	char *pool = c->pool;
 
 	if (r.ty != JPO_NUM) {
 		r = nm_jp_error(pool, "need number");
@@ -1004,18 +1015,18 @@ nm_jp_ninterp(struct nm_jp *ip, struct _jpo r, char *pool)
 	error = in->update(in, nv);
 	if (error)
 		r = nm_jp_error(pool, "invalid; %ld", nv);
-	r = ip->dump(ip, pool);
+	r = ip->dump(ip, c);
 done:
 	return r;
 }
 
 static struct _jpo
-nm_jp_ndump(struct nm_jp *ip, char *pool)
+nm_jp_ndump(struct nm_jp *ip, struct nm_conf *c)
 {
 	struct nm_jp_num *in = (struct nm_jp_num*)ip;
 	int64_t v = nm_jp_ngetvar(in);
 
-	return jslr_new_num(pool, v);
+	return jslr_new_num(c->pool, v);
 }
 
 

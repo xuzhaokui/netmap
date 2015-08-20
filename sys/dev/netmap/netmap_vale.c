@@ -250,11 +250,12 @@ netmap_bdg_name(struct netmap_vp_adapter *vp)
 struct nm_jp_list nm_jp_bridge;
 
 static struct _jpo
-netmap_bdg_interp_dump(struct nm_jp *ip, char *pool)
+netmap_bdg_jp_dump(struct nm_jp *ip, struct nm_conf *c)
 {
 	struct nm_bridge *b = container_of(ip, struct nm_bridge, ip_ports);
 	int i, len;
 	struct _jpo r, *po;
+	char *pool = c->pool;
 
 	BDG_RLOCK(b);
 	len = b->bdg_active_ports;
@@ -274,13 +275,13 @@ out:
 }
 
 static struct _jpo
-netmap_bdg_interp_interp(struct nm_jp *ip, struct _jpo r, char *pool)
+netmap_bdg_jp_interp(struct nm_jp *ip, struct _jpo r, struct nm_conf *c)
 {
-	return netmap_bdg_interp_dump(ip, pool);
+	return netmap_bdg_jp_dump(ip, c);
 }
 
 static void
-netmap_bdg_interp_uninit(struct nm_bridge *b)
+netmap_bdg_jp_uninit(struct nm_bridge *b)
 {
 	nm_jp_ldel(&nm_jp_bridge, &b->ip.up);
 	nm_jp_ldel(&b->ip, &b->ip_ports);
@@ -288,15 +289,15 @@ netmap_bdg_interp_uninit(struct nm_bridge *b)
 }
 
 static int
-netmap_bdg_interp_init(struct nm_bridge *b)
+netmap_bdg_jp_init(struct nm_bridge *b)
 {
 	int error;
 
 	error = nm_jp_linit(&b->ip, 10);
 	if (error)
 		goto fail;
-	b->ip_ports.dump = netmap_bdg_interp_dump;
-	b->ip_ports.interp = netmap_bdg_interp_interp;
+	b->ip_ports.dump = netmap_bdg_jp_dump;
+	b->ip_ports.interp = netmap_bdg_jp_interp;
 	b->ip_ports.bracket = NULL;
 	error = nm_jp_ladd(&b->ip, &b->ip_ports, "ports");
 	if (error)
@@ -306,7 +307,7 @@ netmap_bdg_interp_init(struct nm_bridge *b)
 		goto fail;
 	return 0;
 fail:
-	netmap_bdg_interp_uninit(b);
+	netmap_bdg_jp_uninit(b);
 	return error;
 }
 #endif /* WITH_NMCONF */
@@ -406,7 +407,7 @@ nm_find_bridge(const char *name, int create)
 		ND("create new bridge %s with ports %d", b->bdg_basename,
 			b->bdg_active_ports);
 #ifdef WITH_NMCONF
-		if (netmap_bdg_interp_init(b))
+		if (netmap_bdg_jp_init(b))
 			return NULL;
 #endif
 		b->bdg_namelen = namelen;
@@ -545,7 +546,7 @@ netmap_bdg_detach_common(struct nm_bridge *b, int hw, int sw)
 	if (lim == 0) {
 		ND("marking bridge %s as free", b->bdg_basename);
 #ifdef WITH_NMCONF
-		netmap_bdg_interp_uninit(b);
+		netmap_bdg_jp_uninit(b);
 #endif
 		bzero(&b->bdg_ops, sizeof(b->bdg_ops));
 		NM_BNS_PUT(b);

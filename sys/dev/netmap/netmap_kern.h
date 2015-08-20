@@ -274,6 +274,7 @@ struct nm_conf {
 	NM_MTX_T mux;
 	struct nm_confb buf[2]; /* 0 in, 1 out */
 	int written;
+	char *pool;
 	int (*dump)(const char *pool, struct _jpo*, struct nm_confb *);
 };
 void nm_conf_init(struct nm_conf*);
@@ -282,11 +283,12 @@ struct uio;
 int nm_conf_read(struct nm_conf *, struct uio *);
 int nm_conf_write(struct nm_conf *, struct uio *);
 int nm_conf_parse(struct nm_conf*, int locked);
+const char *nm_conf_get_output_mode(struct nm_conf *);
 
 struct nm_jp {
-	struct _jpo (*interp)(struct nm_jp *, struct _jpo, char *pool);
-	struct _jpo (*dump)(struct nm_jp *, char *pool);
-	void	    (*bracket)(struct nm_jp *, int stage);
+	struct _jpo (*interp)(struct nm_jp *, struct _jpo, struct nm_conf *);
+	struct _jpo (*dump)(struct nm_jp *, struct nm_conf *);
+	void	    (*bracket)(struct nm_jp *, int stage, struct nm_conf *);
 };
 
 struct _jpo nm_jp_error(char *pool, const char *fmt, ...);

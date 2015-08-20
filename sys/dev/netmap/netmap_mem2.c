@@ -307,7 +307,7 @@ netmap_mem_interp_uninit(struct netmap_mem_d *nmd)
 }
 
 static void
-netmap_mem_interp_bracket(struct nm_jp *i, int stage)
+netmap_mem_interp_bracket(struct nm_jp *i, int stage, struct nm_conf *c)
 {
 	struct nm_jp_list *il = (struct nm_jp_list *)i;
 	struct netmap_mem_d *nmd = container_of(il, struct netmap_mem_d, ip);
