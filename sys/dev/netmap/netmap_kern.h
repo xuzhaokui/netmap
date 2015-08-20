@@ -356,6 +356,7 @@ int nm_jp_nupdate(struct nm_jp_num *, int64_t);
 
 extern struct nm_jp_list nm_jp_root;
 extern struct nm_jp_list nm_jp_ports;
+extern struct nm_jp	 nm_jp_priv;
 
 #else /* ! WITH_NMCONF */
 
@@ -1827,7 +1828,11 @@ struct netmap_priv_d {
 	NM_SELINFO_T *np_si[NR_TXRX];
 	struct thread	*np_td;		/* kqueue, just debugging */
 
+#ifdef WITH_NMCONF
 	struct nm_conf	conf;
+	struct nm_jp_list ip;
+	struct nm_jp ip_na;
+#endif
 };
 
 struct netmap_priv_d *netmap_priv_new(void);

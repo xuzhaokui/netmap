@@ -969,6 +969,18 @@ nm_si_user(struct netmap_priv_d *priv, enum txrx t)
 		(priv->np_qlast[t] - priv->np_qfirst[t] > 1));
 }
 
+#ifdef WITH_NMCONF
+static struct _jpo
+netmap_priv_jp_na_dump(struct nm_jp *jp, struct nm_conf *c)
+{
+	struct netmap_priv_d *priv =
+		container_of(jp, struct netmap_priv_d, ip_na);
+	if (priv->np_na)
+		return jslr_new_string(c->pool, priv->np_na->name);
+	return jslr_new_string(c->pool, "unregistered");
+}
+#endif
+
 struct netmap_priv_d*
 netmap_priv_new(void)
 {
@@ -979,7 +991,15 @@ netmap_priv_new(void)
 	if (priv == NULL)
 		return NULL;
 	priv->np_refs = 1;
+#ifdef WITH_NMCONF
 	nm_conf_init(&priv->conf);
+	if (nm_jp_linit(&priv->ip, 10)) {
+		free(priv, M_DEV);
+		return NULL;
+	}
+	priv->ip_na.dump = netmap_priv_jp_na_dump;
+	nm_jp_ladd(&priv->ip, &priv->ip_na, "port");
+#endif
 	netmap_use_count++;
 	return priv;
 }
@@ -1003,7 +1023,10 @@ netmap_priv_delete(struct netmap_priv_d *priv)
 		return;
 	}
 	netmap_use_count--;
+#ifdef WITH_NMCONF
+	nm_jp_luninit(&priv->ip);
 	nm_conf_uninit(&priv->conf, 1 /* locked */);
+#endif
 	if (na) {
 		netmap_do_unregif(priv);
 	}
@@ -3353,8 +3376,17 @@ nm_jp_mode_interp(struct nm_jp *ip, struct _jpo r, struct nm_conf *c)
 		return nm_jp_error(pool, "unknown mode");
 	return r;
 }
+static struct _jpo
+nm_jp_priv_dump(struct nm_jp *ip, struct nm_conf *c)
+{
+	struct netmap_priv_d *priv =
+		container_of(c, struct netmap_priv_d, conf);
+
+	return priv->ip.up.dump(&priv->ip.up, c);
+}
 struct nm_jp_list nm_jp_root;
 struct nm_jp_list nm_jp_ports;
+struct nm_jp	  nm_jp_priv;
 #endif /* WITH_NMCONF */
 
 
@@ -3405,7 +3437,9 @@ netmap_init(void)
 	nm_jp_ladd(&nm_jp_root, &nm_jp_version, "version");
 	nm_jp_mode.dump = nm_jp_mode_dump;
 	nm_jp_mode.interp = nm_jp_mode_interp;
-	m_jp_ladd(&nm_jp_root, &nm_jp_mode, "output-mode");
+	nm_jp_ladd(&nm_jp_root, &nm_jp_mode, "output-mode");
+	nm_jp_priv.dump = nm_jp_priv_dump;
+	nm_jp_ladd(&nm_jp_root, &nm_jp_priv, "priv");
 	error = nm_jp_linit(&nm_jp_ports, 10);
 	if (error)
 		goto fail;
