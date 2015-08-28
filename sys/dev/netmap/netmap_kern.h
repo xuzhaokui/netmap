@@ -330,11 +330,12 @@ typedef int64_t (*nm_jp_nreader)(struct nm_jp_num *);
 void nm_jp_ninit(struct nm_jp_num *, void *var, size_t size,
 		int (*update)(struct nm_jp_num *, int64_t));
 int nm_jp_nupdate(struct nm_jp_num *, int64_t);
+/* only call when you already know that nm_jp_ladd will not fail */
 #define NM_JP_LADD_NUM(il, in, v, u, fmt, ...)					\
-	({									\
+	do {									\
 		nm_jp_ninit(in, &(v), sizeof(v), u);				\
 		nm_jp_ladd(il, &(in)->up, fmt, ##__VA_ARGS__);			\
-	})
+	} while (0)
 #define NM_JP_LADD_RONUM(il, in, v, fmt, ...)					\
 	NM_JP_LADD_NUM(il, in, v, NULL, fmt, ##__VA_ARGS__)
 #define NM_JP_LADD_RWNUM(il, in, v, fmt, ...)					\

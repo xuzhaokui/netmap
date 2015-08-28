@@ -1918,15 +1918,11 @@ netmap_vp_create(struct nmreq *nmr, struct ifnet *ifp, struct netmap_vp_adapter 
 	if (error)
 		goto err;
 #ifdef WITH_NMCONF
-	error = NM_JP_LADD_RONUM(&na->ip,
+	NM_JP_LADD_RONUM(&na->ip,
 			&vpna->ip_virt_hdr_len,
 			vpna->virt_hdr_len, "virt-hdr-len");
-	if (error)
-		goto err;
-	error = NM_JP_LADD_RONUM(&na->ip,
+	NM_JP_LADD_RONUM(&na->ip,
 			&vpna->ip_mfs, vpna->mfs, "mfs");
-	if (error)
-		goto err;
 #endif
 	*ret = vpna;
 	return 0;
