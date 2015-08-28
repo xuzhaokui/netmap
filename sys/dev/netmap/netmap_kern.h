@@ -317,19 +317,7 @@ void nm_jp_luninit(struct nm_jp_list *);
 struct nm_jp_lelem *nm_jp_lnew_elem(struct nm_jp_list *);
 int nm_jp_lelem_fill(struct nm_jp_lelem *e,
 		struct nm_jp *, const char *fmt, ...);
-#define nm_jp_ladd(il, ip, fmt, ...) ({ 		\
-	int __rv = 0;					\
-	do {						\
-		struct nm_jp_lelem *__e =		\
-			nm_jp_lnew_elem(il);		\
-		if (__e == NULL) {			\
-			__rv = ENOMEM;			\
-			break;				\
-		}					\
-		__rv = nm_jp_lelem_fill(__e, ip,	\
-			fmt, ##__VA_ARGS__);		\
-	} while (0); __rv; })
-
+int nm_jp_ladd(struct nm_jp_list *, struct nm_jp *, const char *fmt, ...);
 int nm_jp_ldel(struct nm_jp_list *, struct nm_jp *);
 struct nm_jp_num {
 	struct nm_jp up;

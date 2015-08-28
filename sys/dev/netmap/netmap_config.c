@@ -887,24 +887,56 @@ nm_jp_lnew_elem(struct nm_jp_list *il)
 	return &il->list[il->nextfree++];
 }
 
-int
-nm_jp_lelem_fill(struct nm_jp_lelem *e,
+static int
+nm_jp_lelem_vfill(struct nm_jp_lelem *e,
 		struct nm_jp *ip,
-		const char *fmt, ...)
+		const char *fmt, va_list ap)
 {
-	va_list ap;
 	int n;
 
 	e->ip = ip;
-	va_start(ap, fmt);
 	n = vsnprintf(e->name, NETMAP_CONFIG_MAXNAME, fmt, ap);
-	va_end(ap);
 
 	if (n >= NETMAP_CONFIG_MAXNAME)
 		return ENAMETOOLONG;
 
 	return 0;
 }
+
+int
+nm_jp_lelem_fill(struct nm_jp_lelem *e,
+		struct nm_jp *ip,
+		const char *fmt, ...)
+{
+	va_list ap;
+	int rv;
+
+	va_start(ap, fmt);
+	rv = nm_jp_lelem_vfill(e, ip, fmt, ap);
+	va_end(ap);
+
+	return rv;
+}
+
+int nm_jp_ladd(struct nm_jp_list *il,
+		struct nm_jp *ip,
+		const char *fmt, ...)
+{
+	struct nm_jp_lelem *e;
+	va_list ap;
+	int rv;
+
+	e = nm_jp_lnew_elem(il);
+	if (e == NULL) {
+		return ENOMEM;
+	}
+	va_start(ap, fmt);
+	rv = nm_jp_lelem_fill(e, ip, fmt, ap);
+	va_end(ap);
+
+	return rv;
+}
+
 
 static int
 _nm_jp_ldel(struct nm_jp_list *il, struct nm_jp_lelem *e1)
