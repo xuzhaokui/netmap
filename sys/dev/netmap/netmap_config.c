@@ -162,9 +162,8 @@ nm_confb_post_write(struct nm_confb *cb, u_int size)
 }
 
 static int
-nm_confb_printf(struct nm_confb *cb, const char *format, ...)
+nm_confb_vprintf(struct nm_confb *cb, const char *format, va_list ap)
 {
-	va_list ap;
 	int rv;
         u_int size = 64, *psz = &size;
 	void *p;
@@ -173,9 +172,7 @@ nm_confb_printf(struct nm_confb *cb, const char *format, ...)
 		p = nm_confb_pre_write(cb, size, psz);
 		if (p == NULL)
 			return ENOMEM;
-		va_start(ap, format);
 		rv = vsnprintf(p, size, format, ap);
-		va_end(ap);
 		if (rv < size)
 			break;
 		D("rv %d size %u: retry", rv, size);
@@ -187,18 +184,37 @@ nm_confb_printf(struct nm_confb *cb, const char *format, ...)
 	return 0;
 }
 
-#define nm_confb_iprintf(cb, i, fmt, ...)					\
-	({									\
-		int __j, __rv = 0;						\
-		for (__j = 0; __j < (i); __j++)	{				\
-			__rv = nm_confb_printf(cb, "    ");			\
-	 		if (__rv)						\
-	 			break;						\
-	 	}								\
-	 	if (__rv == 0)							\
-			__rv = nm_confb_printf(cb, fmt, ##__VA_ARGS__);		\
-	 	__rv;								\
-	 })
+static int
+nm_confb_printf(struct nm_confb *cb, const char *fmt, ...)
+{
+	va_list ap;
+	int rv;
+
+	va_start(ap, fmt);
+	rv = nm_confb_vprintf(cb, fmt, ap);
+	va_end(ap);
+
+	return rv;
+}
+
+static int
+nm_confb_iprintf(struct nm_confb *cb, int i, const char *fmt, ...)
+{
+	int j, rv = 0;
+	va_list ap;
+
+	for (j = 0; j < i; j++)	{
+		rv = nm_confb_printf(cb, "    ");
+		if (rv)
+			return rv;
+	}
+	if (rv == 0) {
+		va_start(ap, fmt);
+		rv = nm_confb_vprintf(cb, fmt, ap);
+		va_end(ap);
+	}
+	return rv;
+}
 
 /* prepare for a read of size bytes;
  * returns a pointer to a buffer which is at least size bytes big.
