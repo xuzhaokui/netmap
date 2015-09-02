@@ -438,7 +438,7 @@ nm_free_bdgfwd(struct netmap_adapter *na)
 	kring = na->tx_rings;
 	for (i = 0; i < nrings; i++) {
 		if (kring[i].nkr_ft) {
-			free(kring[i].nkr_ft, M_DEVBUF);
+			nm_os_free(kring[i].nkr_ft);
 			kring[i].nkr_ft = NULL; /* protect from freeing twice */
 		}
 	}
@@ -468,7 +468,7 @@ nm_alloc_bdgfwd(struct netmap_adapter *na)
 		struct nm_bdg_q *dstq;
 		int j;
 
-		ft = malloc(l, M_DEVBUF, M_NOWAIT | M_ZERO);
+		ft = nm_os_malloc(l);
 		if (!ft) {
 			nm_free_bdgfwd(na);
 			return ENOMEM;
@@ -757,7 +757,7 @@ netmap_get_bdg_na(struct nmreq *nmr, struct netmap_adapter **na, int create)
 		error = netmap_vp_create(nmr, NULL, &vpna);
 		if (error) {
 			D("error %d", error);
-			free(ifp, M_DEVBUF);
+			nm_os_free(ifp);
 			return error;
 		}
 		/* shortcut - we can skip get_hw_na(),
@@ -1854,7 +1854,7 @@ netmap_vp_create(struct nmreq *nmr, struct ifnet *ifp, struct netmap_vp_adapter 
 	int error;
 	u_int npipes = 0;
 
-	vpna = malloc(sizeof(*vpna), M_DEVBUF, M_NOWAIT | M_ZERO);
+	vpna = nm_os_malloc(sizeof(*vpna));
 	if (vpna == NULL)
 		return ENOMEM;
 
@@ -1930,7 +1930,7 @@ netmap_vp_create(struct nmreq *nmr, struct ifnet *ifp, struct netmap_vp_adapter 
 err:
 	if (na->nm_mem != NULL)
 		netmap_mem_delete(na->nm_mem);
-	free(vpna, M_DEVBUF);
+	nm_os_free(vpna);
 	return error;
 }
 
@@ -2341,7 +2341,7 @@ netmap_bwrap_attach(const char *nr_name, struct netmap_adapter *hwna)
 		return EBUSY;
 	}
 
-	bna = malloc(sizeof(*bna), M_DEVBUF, M_NOWAIT | M_ZERO);
+	bna = nm_os_malloc(sizeof(*bna));
 	if (bna == NULL) {
 		return ENOMEM;
 	}
@@ -2416,7 +2416,7 @@ netmap_bwrap_attach(const char *nr_name, struct netmap_adapter *hwna)
 err_free:
 	hwna->na_vp = hwna->na_hostvp = NULL;
 	netmap_adapter_put(hwna);
-	free(bna, M_DEVBUF);
+	nm_os_free(bna);
 	return error;
 
 }
@@ -2427,8 +2427,7 @@ netmap_init_bridges2(u_int n)
 	int i;
 	struct nm_bridge *b;
 
-	b = malloc(sizeof(struct nm_bridge) * n, M_DEVBUF,
-		M_NOWAIT | M_ZERO);
+	b = nm_os_malloc(sizeof(struct nm_bridge) * n);
 	if (b == NULL)
 		return NULL;
 	for (i = 0; i < n; i++)
@@ -2446,7 +2445,7 @@ netmap_uninit_bridges2(struct nm_bridge *b, u_int n)
 
 	for (i = 0; i < n; i++)
 		BDG_RWDESTROY(&b[i]);
-	free(b, M_DEVBUF);
+	nm_os_free(b);
 }
 
 void netmap_uninit_bridges(void);

@@ -271,8 +271,7 @@ generic_netmap_register(struct netmap_adapter *na, int enable)
 
 	if (enable) { /* Enable netmap mode. */
 		/* Init the mitigation support on all the rx queues. */
-		gna->mit = malloc(na->num_rx_rings * sizeof(struct nm_generic_mit),
-					M_DEVBUF, M_NOWAIT | M_ZERO);
+		gna->mit = nm_os_malloc(na->num_rx_rings * sizeof(struct nm_generic_mit));
 		if (!gna->mit) {
 			D("mitigation allocation failed");
 			error = ENOMEM;
@@ -294,8 +293,7 @@ generic_netmap_register(struct netmap_adapter *na, int enable)
 		for (r=0; r<na->num_tx_rings; r++)
 			na->tx_rings[r].tx_pool = NULL;
 		for (r=0; r<na->num_tx_rings; r++) {
-			na->tx_rings[r].tx_pool = malloc(na->num_tx_desc * sizeof(struct mbuf *),
-					M_DEVBUF, M_NOWAIT | M_ZERO);
+			na->tx_rings[r].tx_pool = nm_os_malloc(na->num_tx_desc * sizeof(struct mbuf *));
 			if (!na->tx_rings[r].tx_pool) {
 				D("tx_pool allocation failed");
 				error = ENOMEM;
@@ -364,13 +362,13 @@ generic_netmap_register(struct netmap_adapter *na, int enable)
 
 		for (r=0; r<na->num_rx_rings; r++)
 			nm_os_mitigation_cleanup(&gna->mit[r]);
-		free(gna->mit, M_DEVBUF);
+		nm_os_free(gna->mit);
 
 		for (r=0; r<na->num_tx_rings; r++) {
 			for (i=0; i<na->num_tx_desc; i++) {
 				m_freem(na->tx_rings[r].tx_pool[i]);
 			}
-			free(na->tx_rings[r].tx_pool, M_DEVBUF);
+			nm_os_free(na->tx_rings[r].tx_pool);
 		}
 
 #ifdef RATE_GENERIC
@@ -399,14 +397,14 @@ free_tx_pools:
 		for (i=0; i<na->num_tx_desc; i++)
 			if (na->tx_rings[r].tx_pool[i])
 				m_freem(na->tx_rings[r].tx_pool[i]);
-		free(na->tx_rings[r].tx_pool, M_DEVBUF);
+		nm_os_free(na->tx_rings[r].tx_pool);
 		na->tx_rings[r].tx_pool = NULL;
 	}
 	for (r=0; r<na->num_rx_rings; r++) {
 		nm_os_mitigation_cleanup(&gna->mit[r]);
 		mbq_safe_destroy(&na->rx_rings[r].rx_queue);
 	}
-	free(gna->mit, M_DEVBUF);
+	nm_os_free(gna->mit);
 out:
 
 	return error;
@@ -856,7 +854,7 @@ generic_netmap_attach(struct ifnet *ifp)
 		return EINVAL;
 	}
 
-	gna = malloc(sizeof(*gna), M_DEVBUF, M_NOWAIT | M_ZERO);
+	gna = nm_os_malloc(sizeof(*gna));
 	if (gna == NULL) {
 		D("no memory on attach, give up");
 		return ENOMEM;
@@ -885,7 +883,7 @@ generic_netmap_attach(struct ifnet *ifp)
 
 	retval = netmap_attach_common(na);
 	if (retval) {
-		free(gna, M_DEVBUF);
+		nm_os_free(gna);
 		return retval;
 	}
 

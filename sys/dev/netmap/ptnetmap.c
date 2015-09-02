@@ -771,7 +771,7 @@ ptnetmap_create(struct netmap_pt_host_adapter *pth_na, struct ptnetmap_cfg *cfg)
         return EFAULT;
     }
 
-    pts = malloc(sizeof(*pts), M_DEVBUF, M_NOWAIT | M_ZERO);
+    pts = nm_os_malloc(sizeof(*pts));
     if (!pts)
         return ENOMEM;
     pts->configured = false;
@@ -832,7 +832,7 @@ ptnetmap_create(struct netmap_pt_host_adapter *pth_na, struct ptnetmap_cfg *cfg)
     return 0;
 
 err:
-    free(pts, M_DEVBUF);
+    nm_os_free(pts);
     return ret;
 }
 
@@ -870,7 +870,7 @@ ptnetmap_delete(struct netmap_pt_host_adapter *pth_na)
 
     IFRATE(del_timer(&pts->rate_ctx.timer));
 
-    free(pts, M_DEVBUF);
+    nm_os_free(pts);
 
     pth_na->ptn_state = NULL;
 
@@ -1149,7 +1149,7 @@ netmap_get_pt_host_na(struct nmreq *nmr, struct netmap_adapter **na, int create)
         return 0;
     }
 
-    pth_na = malloc(sizeof(*pth_na), M_DEVBUF, M_NOWAIT | M_ZERO);
+    pth_na = nm_os_malloc(sizeof(*pth_na));
     if (pth_na == NULL) {
         D("ERROR malloc");
         return ENOMEM;
@@ -1230,7 +1230,7 @@ put_out:
     if (ifp)
 	if_rele(ifp);
 put_out_noputparent:
-    free(pth_na, M_DEVBUF);
+    nm_os_free(pth_na);
     return error;
 }
 #endif /* WITH_PTNETMAP_HOST */

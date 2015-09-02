@@ -118,7 +118,7 @@ nm_confb_pre_write(struct nm_confb *cb, u_int req_size, u_int *avl_size)
 	s = NM_CBDATASIZ;
 	if (req_size > s && avl_size == NULL)
 		s = req_size;
-	nd = malloc(sizeof(*d) + s, M_DEVBUF, M_NOWAIT);
+	nd = nm_os_malloc(sizeof(*d) + s);
 	if (nd == NULL)
 		return NULL;
 	nd->size = s;
@@ -259,7 +259,7 @@ nm_confb_post_read(struct nm_confb *cb, u_int size)
 		struct nm_confb_data *ocb = cb->readp;
 		cb->readp = cb->readp->chain;
 		cb->next_r = 0;
-		free(ocb, M_DEVBUF);
+		nm_os_free(ocb);
 		cb->n_data--;
 	}
 	cb->next_r += size;
@@ -304,7 +304,7 @@ nm_confb_destroy(struct nm_confb *cb)
 
 	while (d) {
 		struct nm_confb_data *nd = d->chain;
-		free(d, M_DEVBUF);
+		nm_os_free(d);
 		d = nd;
 	}
 	memset(cb, 0, sizeof(*cb));
@@ -554,7 +554,7 @@ nm_conf_parse(struct nm_conf *c, int locked)
 	if (nm_confb_empty(i))
 		return 0;
 
-	c->pool = malloc(pool_len, M_DEVBUF, M_ZERO);
+	c->pool = nm_os_malloc(pool_len);
 	if (c->pool == NULL)
 		return ENOMEM;
 	r = jslr_parse(&njs.stream, c->pool, pool_len);
@@ -572,7 +572,7 @@ nm_conf_parse(struct nm_conf *c, int locked)
 	error = c->dump(c->pool, &r, o);
 	nm_confb_trunc(o);
 out:
-	free(c->pool, M_DEVBUF);
+	nm_os_free(c->pool);
 	c->pool = NULL;
 	return error;
 }
@@ -871,7 +871,7 @@ nm_jp_linit(struct nm_jp_list *il, u_int nelem)
 	il->up.interp = nm_jp_linterp;
 	il->up.dump = nm_jp_ldump;
 	il->minelem = nelem;
-	il->list = malloc(sizeof(*il->list) * nelem, M_DEVBUF, M_ZERO);
+	il->list = nm_os_malloc(sizeof(*il->list) * nelem);
 	if (il->list == NULL)
 		return ENOMEM;
 	il->nelem = nelem;
@@ -882,7 +882,7 @@ nm_jp_linit(struct nm_jp_list *il, u_int nelem)
 void
 nm_jp_luninit(struct nm_jp_list *il)
 {
-	free(il->list, M_DEVBUF);
+	nm_os_free(il->list);
 	memset(il, 0, sizeof(*il));
 }
 
@@ -893,8 +893,8 @@ nm_jp_lnew_elem(struct nm_jp_list *il)
 
 	if (il->nextfree >= il->nelem) {
 		u_int newnelem = il->nelem * 2;
-		newlist = realloc(il->list, sizeof(*il->list) * newnelem,
-				M_DEVBUF, M_ZERO);
+		newlist = nm_os_realloc(il->list, sizeof(*il->list) * newnelem,
+				sizeof(*il->list) * il->nelem);
 		if (newlist == NULL)
 			return NULL;
 		il->list = newlist;
@@ -971,7 +971,8 @@ _nm_jp_ldel(struct nm_jp_list *il, struct nm_jp_lelem *e1)
 		u_int newnelem = il->nelem / 2;
 		if (newnelem < il->minelem)
 			newnelem = il->minelem;
-		newlist = realloc(il->list, newnelem, M_DEVBUF, M_ZERO);
+		newlist = nm_os_realloc(il->list, sizeof(*il->list) * newnelem,
+				sizeof(*il->list) * il->nelem);
 		if (newlist == NULL) {
 			D("out of memory when trying to release memory?");
 			return 0; /* not fatal */

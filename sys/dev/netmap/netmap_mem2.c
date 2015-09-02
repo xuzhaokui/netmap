@@ -1161,7 +1161,7 @@ netmap_reset_obj_allocator(struct netmap_obj_pool *p)
 	if (p == NULL)
 		return;
 	if (p->bitmap)
-		free(p->bitmap, M_NETMAP);
+		nm_os_free(p->bitmap);
 	p->bitmap = NULL;
 	if (p->lut) {
 		u_int i;
@@ -1299,7 +1299,7 @@ nm_alloc_lut(u_int nobj)
 #ifdef linux
 	lut = vmalloc(n);
 #else
-	lut = malloc(n, M_NETMAP, M_NOWAIT | M_ZERO);
+	lut = nm_os_malloc(n);
 #endif
 	return lut;
 }
@@ -1323,7 +1323,7 @@ netmap_finalize_obj_allocator(struct netmap_obj_pool *p)
 
 	/* Allocate the bitmap */
 	n = (p->objtotal + 31) / 32;
-	p->bitmap = malloc(sizeof(uint32_t) * n, M_NETMAP, M_NOWAIT | M_ZERO);
+	p->bitmap = nm_os_malloc(sizeof(uint32_t) * n);
 	if (p->bitmap == NULL) {
 		D("Unable to create bitmap (%d entries) for allocator '%s'", (int)n,
 		    p->name);
@@ -1564,7 +1564,7 @@ netmap_mem_private_delete(struct netmap_mem_d *nmd)
 	if (netmap_verbose)
 		D("done deleting %p", nmd);
 	NMA_LOCK_DESTROY(nmd);
-	free(nmd, M_DEVBUF);
+	nm_os_free(nmd);
 }
 
 /*
@@ -1581,8 +1581,7 @@ _netmap_mem_private_new(struct netmap_obj_params *p, int *perr)
 	size_t extra = 0;
 #endif
 
-	d = malloc(sizeof(struct netmap_mem_d) + extra,
-			M_DEVBUF, M_NOWAIT | M_ZERO);
+	d = nm_os_malloc(sizeof(struct netmap_mem_d) + extra);
 	if (d == NULL) {
 		err = ENOMEM;
 		goto error;
@@ -2265,7 +2264,7 @@ netmap_mem_pt_guest_delete(struct netmap_mem_d *nmd)
 	if (netmap_verbose)
 		D("done deleting %p", nmd);
 	NMA_LOCK_DESTROY(nmd);
-	free(nmd, M_DEVBUF);
+	nm_os_free(nmd);
 }
 
 static struct netmap_if *
@@ -2381,8 +2380,7 @@ netmap_mem_pt_guest_create(nm_memid_t host_id)
 	struct netmap_mem_ptg *pv;
 	int err = 0;
 
-	pv = malloc(sizeof(struct netmap_mem_ptg),
-			M_DEVBUF, M_NOWAIT | M_ZERO);
+	pv = nm_os_malloc(sizeof(struct netmap_mem_ptg));
 	if (pv == NULL) {
 		err = ENOMEM;
 		goto error;
