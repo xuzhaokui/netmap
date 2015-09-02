@@ -59,11 +59,21 @@
 
 #pragma warning(disable:4267)	//conversion from 'size_t' to <type>. possible loss of data
 
+//netmap config warnings
+#pragma warning(disable:4152)	//Warning	2	warning C4152: nonstandard extension, function/data pointer conversion in expression	F:\Devel\Netmap\sys\dev\netmap\netmap.c	2874
+#pragma warning(disable:4204)	//Warning	4	warning C4204: nonstandard extension used : non-constant aggregate initializer	F:\Devel\Netmap\WINDOWS\netmap_windows.c	103
+#pragma warning(disable:4221)	//Warning	40	warning C4221: nonstandard extension used : 'base' : cannot be initialized using address of automatic variable 'buf'	F:\Devel\Netmap\sys\dev\netmap\netmap_config.c	515
+#pragma warning(disable:4055)	//Warning	44	warning C4055: 'type cast' : from data pointer 'void *' to function pointer 'nm_jp_nreader'	F:\Devel\Netmap\sys\dev\netmap\netmap_config.c	1014
+#pragma warning(disable:4057)	//Warning	44	warning C4057: 'function' : 'u_int *' differs in indirection to slightly different base types from 'int *'	F:\Devel\Netmap\sys\dev\netmap\netmap_config.c	620
+
+//jsonlr warnings
+#pragma warning(disable:4701)	//Warning	2	warning C4701: potentially uninitialized local variable 'name' used	f:\devel\netmap\sys\dev\netmap\jsonlr.c	402
+
 #endif /* !__CYGWIN__ */
 
 #define NDIS_SUPPORT_NDIS6	1	//gives support for NDIS NET_BUFFERs
 
-#define WIN32_LEAN_AND_MEAN	1
+#define WIN32_LEAN_AND_MEAN
 
 #include <ndis.h>
 #include <string.h>
@@ -449,6 +459,20 @@ win_contigmalloc(int sz, int page_size)
 #define MALLOC_DEFINE(a,b,c)
 
 //--------------------------------------------------------
+
+/*
+ * Netmap Config 
+ */
+struct uio {
+	int uio_resid;
+	char *buf;
+	int write;
+	void *win_pointer_to_irp;	/* required by Windows to call copy_to/from_user */
+};
+extern int
+uiomove(void *buf, int howmuch, struct uio *uio);
+#define vsnprintf _vsnprintf
+#define container_of(p, t, f)	((t*)((char *)(p)-offsetof(t, f)))
 
 /*
  *	SYSCTL emulation (from dummynet/glue.h)

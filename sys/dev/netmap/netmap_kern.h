@@ -66,6 +66,7 @@
 #define WITH_PIPES
 #define WITH_MONITOR
 #define WITH_GENERIC
+#define WITH_NMCONF
 
 #else	/* neither linux nor windows */
 #define WITH_VALE	// comment out to disable VALE support

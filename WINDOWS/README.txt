@@ -64,8 +64,9 @@ install the following tools (in this order):
 
 	http://www.cygwin.com/
 
-   with base packages, make, C compiler, possibly git and other utilities
-   used to build the sample programs pkt-gen
+   with base packages, make, C compiler, dos2unix, possibly git and other 
+   utilities used to build the sample programs pkt-gen and the dynamic 
+   generated header netmap_version.h
 
 There are two build methods:
 

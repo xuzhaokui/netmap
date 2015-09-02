@@ -1,21 +1,19 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-
   <PropertyGroup Label="Globals">
     <ProjectGuid>{789055E4-2677-413D-A638-3E2AED7C7427}</ProjectGuid>
     <TemplateGuid>{dd38f7fc-d7bd-488b-9242-7d8754cde80d}</TemplateGuid>
     <RootNamespace>netmap</RootNamespace>
   </PropertyGroup>
-
   <PropertyGroup Label="Configuration">
-    <ConfigurationType>Driver</ConfigurationType> <!-- this only in the drivers -->
-    <DriverType>WDM</DriverType> <!-- this only in the drivers -->
+    <ConfigurationType>Driver</ConfigurationType>
+    <!-- this only in the drivers -->
+    <DriverType>WDM</DriverType>
+    <!-- this only in the drivers -->
     <PlatformToolset>WindowsKernelModeDriver8.1</PlatformToolset>
   </PropertyGroup>
-
   <Import Project="my-project-cfg.props" />
   <Import Project="my-project.props" />
-
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|Win32'">
     <ClCompile>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
@@ -27,8 +25,10 @@
     <Link>
       <AdditionalDependencies>%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)\ntoskrnl.lib;$(DDK_LIB_PATH)\hal.lib;$(DDK_LIB_PATH)\wmilib.lib;$(DDK_LIB_PATH)\netio.lib;</AdditionalDependencies>
     </Link>
+    <PreBuildEvent>
+      <Command>$(SolutionDir)\win-gen-version.bat $(SolutionDir)\</Command>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
-
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|Win32'">
     <ClCompile>
       <FavorSizeOrSpeed>Neither</FavorSizeOrSpeed>
@@ -40,8 +40,10 @@
     <Link>
       <AdditionalDependencies>%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)\ntoskrnl.lib;$(DDK_LIB_PATH)\hal.lib;$(DDK_LIB_PATH)\wmilib.lib;</AdditionalDependencies>
     </Link>
+    <PreBuildEvent>
+      <Command>$(SolutionDir)\win-gen-version.bat $(SolutionDir)\</Command>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
-
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Debug|x64'">
     <ClCompile>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
@@ -50,8 +52,10 @@
       <WholeProgramOptimization>true</WholeProgramOptimization>
       <PreprocessorDefinitions>_WIN64;_AMD64_;AMD64;%(PreprocessorDefinitions);NDIS60=1;</PreprocessorDefinitions>
     </ClCompile>
+    <PreBuildEvent>
+      <Command>$(SolutionDir)\win-gen-version.bat $(SolutionDir)\</Command>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
-
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|x64'">
     <ClCompile>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
@@ -59,8 +63,10 @@
       <Optimization>MaxSpeed</Optimization>
       <WholeProgramOptimization>true</WholeProgramOptimization>
     </ClCompile>
+    <PreBuildEvent>
+      <Command>$(SolutionDir)\win-gen-version.bat $(SolutionDir)\</Command>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
-
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Win8 Release'">
     <ClCompile>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
@@ -68,8 +74,13 @@
       <Optimization>MaxSpeed</Optimization>
       <WholeProgramOptimization>true</WholeProgramOptimization>
     </ClCompile>
+    <PreBuildEvent>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">$(SolutionDir)\win-gen-version.bat $(SolutionDir)\</Command>
+    </PreBuildEvent>
+    <PreBuildEvent>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">$(SolutionDir)\win-gen-version.bat $(SolutionDir)\</Command>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
-
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Win8.1 Release'">
     <ClCompile>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
@@ -77,10 +88,37 @@
       <Optimization>MaxSpeed</Optimization>
       <WholeProgramOptimization>true</WholeProgramOptimization>
     </ClCompile>
+    <PreBuildEvent>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|Win32'">$(SolutionDir)\win-gen-version.bat $(SolutionDir)\</Command>
+    </PreBuildEvent>
+    <PreBuildEvent>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Win8.1 Release|x64'">$(SolutionDir)\win-gen-version.bat $(SolutionDir)\</Command>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
-
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8 Debug|Win32'">
+    <PreBuildEvent>
+      <Command>$(SolutionDir)\win-gen-version.bat $(SolutionDir)\</Command>
+    </PreBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Debug|Win32'">
+    <PreBuildEvent>
+      <Command>$(SolutionDir)\win-gen-version.bat $(SolutionDir)\</Command>
+    </PreBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win7 Release|x64'">
+    <PreBuildEvent>
+      <Command>$(SolutionDir)\win-gen-version.bat $(SolutionDir)\</Command>
+    </PreBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win8.1 Debug|x64'">
+    <PreBuildEvent>
+      <Command>$(SolutionDir)\win-gen-version.bat $(SolutionDir)\</Command>
+    </PreBuildEvent>
+  </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\sys\dev\netmap\jsonlr.c" />
     <ClCompile Include="..\sys\dev\netmap\netmap.c" />
+    <ClCompile Include="..\sys\dev\netmap\netmap_config.c" />
     <ClCompile Include="..\sys\dev\netmap\netmap_generic.c" />
     <ClCompile Include="..\sys\dev\netmap\netmap_mbq.c" />
     <ClCompile Include="..\sys\dev\netmap\netmap_mem2.c" />
@@ -91,6 +129,7 @@
     <ClCompile Include="win_glue.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\sys\dev\netmap\jsonlr.h" />
     <ClInclude Include="..\sys\dev\netmap\netmap_kern.h" />
     <ClInclude Include="..\sys\dev\netmap\netmap_mbq.h" />
     <ClInclude Include="..\sys\dev\netmap\netmap_mem2.h" />

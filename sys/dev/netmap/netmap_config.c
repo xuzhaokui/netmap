@@ -56,6 +56,10 @@
 #warning OSX support is only partial
 #include "osx_glue.h"
 
+#elif defined(_WIN32)
+
+#include "win_glue.h"
+
 #else
 
 #error	Unsupported platform
@@ -175,6 +179,8 @@ nm_confb_vprintf(struct nm_confb *cb, const char *format, va_list ap)
 		rv = vsnprintf(p, size, format, ap);
 		if (rv < size)
 			break;
+		if (rv < 0)
+			return rv;
 		D("rv %d size %u: retry", rv, size);
 		size = rv + 1;
 		psz = NULL;
@@ -769,11 +775,11 @@ nm_jp_lnew(struct nm_jp_list *il, struct _jpo *pn, struct nm_conf *c)
 	if (ip->interp) {
 		o = ip->interp(ip, *pn, c);
 		if (o.ty == JPO_ERR)
-			goto leave;
+			goto leave_;
 		nm_jp_bracket(ip, 1, c);
 	}
 	o = ip->dump(ip, c);
-leave:
+leave_:
 	nm_jp_bracket(ip, 2, c);
 	e->have_ref = 1;
 out:

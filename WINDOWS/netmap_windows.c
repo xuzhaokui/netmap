@@ -45,6 +45,11 @@ DRIVER_DISPATCH ioctlDeviceControl;
 __drv_dispatchType(IRP_MJ_INTERNAL_DEVICE_CONTROL)
 DRIVER_DISPATCH ioctlInternalDeviceControl;
 
+__drv_dispatchType(IRP_MJ_READ)
+DRIVER_DISPATCH windows_netmap_read;
+
+__drv_dispatchType(IRP_MJ_WRITE)
+DRIVER_DISPATCH windows_netmap_write;
 
 DRIVER_UNLOAD ioctlUnloadDriver;
 
@@ -85,7 +90,7 @@ ioctlCreate(PDEVICE_OBJECT DeviceObject, PIRP Irp)
     NMG_LOCK();
     priv = irpSp->FileObject->FsContext;
     if (priv == NULL) {
-	priv = malloc(sizeof (*priv), M_DEVBUF, M_NOWAIT | M_ZERO); // could wait
+		priv = netmap_priv_new();
 	if (priv == NULL) {
 	    status = STATUS_INSUFFICIENT_RESOURCES;
 	} else {
@@ -690,7 +695,7 @@ copy_to_user(PVOID dst, PVOID src, size_t len, PIRP Irp)
     irpSp = IoGetCurrentIrpStackLocation(Irp);
     outBufLength = irpSp->Parameters.DeviceIoControl.OutputBufferLength;
     if (outBufLength >= len) {
-	RtlCopyMemory(Irp->AssociatedIrp.SystemBuffer, src, len);
+	RtlCopyMemory(dst, src, len);
 	Irp->IoStatus.Information = len;
 	return STATUS_SUCCESS;
     } else {
@@ -740,8 +745,8 @@ DriverEntry(__in PDRIVER_OBJECT DriverObject, __in PUNICODE_STRING RegistryPath)
     DriverObject->MajorFunction[IRP_MJ_CLOSE] = ioctlClose;
     DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = ioctlDeviceControl;
     DriverObject->MajorFunction[IRP_MJ_INTERNAL_DEVICE_CONTROL] = ioctlInternalDeviceControl;
-    //DriverObject->MajorFunction[IRP_MJ_READ] = ReadSync;
-    //DriverObject->MajorFunction[IRP_MJ_WRITE] = WriteSync;
+    DriverObject->MajorFunction[IRP_MJ_READ] = windows_netmap_read;
+    DriverObject->MajorFunction[IRP_MJ_WRITE] = windows_netmap_write;
     DriverObject->DriverUnload = ioctlUnloadDriver;
 
     // Initialize a Unicode String containing the Win32 name
@@ -760,7 +765,7 @@ DriverEntry(__in PDRIVER_OBJECT DriverObject, __in PUNICODE_STRING RegistryPath)
         IoDeleteDevice( deviceObject );
     } else {
 	keinit_GST();
-	deviceObject->Flags |= DO_DIRECT_IO;
+	deviceObject->Flags |= DO_BUFFERED_IO;
     }
     return ntStatus;
 }
@@ -838,7 +843,117 @@ nm_os_ifnet_init(void)
 void
 nm_os_ifnet_fini(void)
 {
+}
 
+/*
+ * Memory management functions
+ */
+void*
+nm_os_malloc(size_t size){
+    return win_kernel_malloc(size, M_DEVBUF, M_NOWAIT | M_ZERO);
+};
+
+void*
+nm_os_realloc(void * src, size_t new_size, size_t old_size){
+    return win_reallocate(src, new_size, old_size);
+};
+
+void
+nm_os_free(void * buf){
+    ExFreePoolWithTag(buf, M_DEVBUF);
+};
+
+/*
+* Configuration read/write management
+*/
+int
+uiomove(void *buf, int howmuch, struct uio *uio)
+{
+	if (uio->write) {
+		ND("copy_from_user(%p, %p, %d)", uio->buf, buf, howmuch);
+		if (copy_from_user(buf, uio->buf, howmuch, uio->win_pointer_to_irp))
+			return EFAULT;
+	}
+	else {
+		ND("copy_to_user(%p, %p, %d", uio->buf, buf, howmuch);
+		if (copy_to_user(uio->buf, buf, howmuch, uio->win_pointer_to_irp))
+			return EFAULT;
+	}
+	uio->buf += howmuch;
+	uio->uio_resid -= howmuch;
+	ND("howmuch %d uio_resid %d", howmuch, uio->uio_resid);
+	return 0;
+}
+
+NTSTATUS
+windows_netmap_read(PDEVICE_OBJECT DeviceObject, PIRP Irp)
+{
+	PIO_STACK_LOCATION  irpSp;
+	NTSTATUS            NtStatus = STATUS_SUCCESS;
+	ULONG argsize;
+	PVOID data;
+	irpSp = IoGetCurrentIrpStackLocation(Irp);
+	struct netmap_priv_d *   priv = irpSp->FileObject->FsContext;
+
+	argsize = irpSp->Parameters.DeviceIoControl.OutputBufferLength;
+	data = Irp->AssociatedIrp.SystemBuffer;
+
+	struct uio uio = {
+		.uio_resid = argsize,
+		.buf = data,
+		.write = 0,
+		.win_pointer_to_irp = Irp
+	};
+	int err;
+
+	err = nm_conf_read(&priv->conf, &uio);
+	ND("err %d uio.uio_resid %d", err, uio.uio_resid);
+	if (err){
+		NtStatus = NDIS_STATUS_ERROR_READING_FILE; //XXX define better code
+	}
+	else{
+		Irp->IoStatus.Information = (argsize - uio.uio_resid);
+	}
+
+	Irp->IoStatus.Status = NtStatus;
+	IoCompleteRequest(Irp, IO_NO_INCREMENT);
+	return NtStatus;
+}
+
+NTSTATUS
+windows_netmap_write(PDEVICE_OBJECT DeviceObject, PIRP Irp)
+{
+	PIO_STACK_LOCATION  irpSp;
+	NTSTATUS            NtStatus = STATUS_SUCCESS;
+	ULONG argsize;
+	PVOID data;
+	irpSp = IoGetCurrentIrpStackLocation(Irp);
+	struct netmap_priv_d *   priv = irpSp->FileObject->FsContext;
+
+	argsize = irpSp->Parameters.DeviceIoControl.OutputBufferLength;
+	data = Irp->AssociatedIrp.SystemBuffer;
+
+	struct uio uio = {
+		.uio_resid = argsize,
+		.buf = data,
+		.write = 1,
+		.win_pointer_to_irp = Irp
+	};
+	int err;
+
+	ND("buf %p count %zd", buf, count);
+	err = nm_conf_write(&priv->conf, &uio);
+	ND("err %d uio.uio_resid %d", err, uio.uio_resid);
+	if (err){
+		NtStatus = IO_ERR_CONFIGURATION_ERROR; //XXX define better code
+	}
+	else{
+		Irp->IoStatus.Information = (argsize - uio.uio_resid);
+	}
+
+	Irp->IoStatus.Status = NtStatus;
+	IoCompleteRequest(Irp, IO_NO_INCREMENT);
+	return NtStatus;
 }
 
 /*
