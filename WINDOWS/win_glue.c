@@ -170,6 +170,9 @@ underscoretopoint(char* s)
 			*s = '.';
 }
 
+extern void* nm_os_malloc(size_t);
+extern void nm_os_free(void*);
+
 static int
 formatnames(void)
 {
@@ -179,7 +182,7 @@ formatnames(void)
 
 	for (i = 0; i<GST.count; i++)
 		size += GST.entry[i].head.namelen;
-	GST.namebuffer = malloc(size, 0, 0);
+	GST.namebuffer = nm_os_malloc(size);
 	if (GST.namebuffer == NULL)
 		return -1;
 	name = GST.namebuffer;
@@ -234,7 +237,7 @@ void
 keexit_GST()
 {
 	if (GST.namebuffer != NULL)
-		free(GST.namebuffer, 0);
+		nm_os_free(GST.namebuffer);
 	bzero(&GST, sizeof(GST));
 }
 

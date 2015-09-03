@@ -549,7 +549,7 @@ ifunit_ref(const char* name)
     deviceIfIndex = getDeviceIfIndex(name+3);
     if (deviceIfIndex < 0)
 	return NULL;
-    ifp = malloc(sizeof(struct net_device), M_DEVBUF, M_NOWAIT | M_ZERO);
+    ifp = nm_os_malloc(sizeof(struct net_device));
     if (ifp == NULL)
 	return NULL;
 
@@ -561,7 +561,7 @@ ifunit_ref(const char* name)
 	win32_init_lookaside_buffers(ifp);
 
 	if (ndis_hooks.ndis_regif(ifp) != STATUS_SUCCESS) {
-	free(ifp, M_DEVBUF);
+	nm_os_free(ifp);
 	win32_clear_lookaside_buffers(ifp);
 	return NULL; /* not found */
     }
@@ -855,7 +855,32 @@ nm_os_malloc(size_t size){
 
 void*
 nm_os_realloc(void * src, size_t new_size, size_t old_size){
-    return win_reallocate(src, new_size, old_size);
+	//DbgPrint("Netmap.sys: win_reallocate(%p, %i, %i)", src, size, oldSize);
+	PVOID newBuff = NULL; /* default return value */
+
+	if (src == NULL) { /* if size > 0, this is a malloc */
+		if (new_size > 0) {
+			newBuff = nm_os_malloc(new_size);
+		}
+	}
+	else if (new_size == 0) {
+		nm_os_free(src);
+	}
+	else if (new_size == old_size) {
+		newBuff = src;
+	}
+	else { /* realloc -- XXX later maybe ignore shrink ? */
+		newBuff = nm_os_malloc(new_size);
+		if (newBuff != NULL) {
+			if (new_size <= old_size) { /* shrink, just copy back part of the data */
+				RtlCopyMemory(newBuff, src, new_size);
+			}
+			else {
+				RtlCopyMemory(newBuff, src, old_size);
+			}
+		}
+	}
+	return newBuff;
 };
 
 void

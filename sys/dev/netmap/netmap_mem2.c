@@ -1180,7 +1180,7 @@ netmap_reset_obj_allocator(struct netmap_obj_pool *p)
 #ifdef linux
 		vfree(p->lut);
 #else
-		free(p->lut, M_NETMAP);
+		nm_os_free(p->lut);
 #endif
 	}
 	p->lut = NULL;
