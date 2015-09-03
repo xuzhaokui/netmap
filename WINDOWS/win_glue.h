@@ -327,9 +327,6 @@ struct device;	// XXX unused, in some place in netmap_mem2.c
 
 #define bcopy(_s, _d, _l)			RtlCopyMemory(_d, _s, _l)
 #define bzero(addr, size)			RtlZeroMemory(addr, size)
-//#define malloc(size, _ty, flags)		win_kernel_malloc(size, _ty, flags)
-//#define free(addr, _type)			ExFreePoolWithTag(addr, _type)
-//#define realloc(src, len, old_len)		win_reallocate(src, len, old_len)
 
 /*
  * we default to always allocating and zeroing
