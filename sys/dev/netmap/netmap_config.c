@@ -953,7 +953,7 @@ int nm_jp_ladd(struct nm_jp_list *il,
 		return ENOMEM;
 	}
 	va_start(ap, fmt);
-	rv = nm_jp_lelem_fill(e, ip, fmt, ap);
+	rv = nm_jp_lelem_vfill(e, ip, fmt, ap);
 	va_end(ap);
 
 	return rv;
