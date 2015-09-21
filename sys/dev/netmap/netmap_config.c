@@ -171,22 +171,25 @@ nm_confb_vprintf(struct nm_confb *cb, const char *format, va_list ap)
 	int rv;
         u_int size = 64, *psz = &size;
 	void *p;
+	va_list _ap;
 
 	for (;;) {
 		p = nm_confb_pre_write(cb, size, psz);
 		if (p == NULL)
 			return ENOMEM;
-		rv = vsnprintf(p, size, format, ap);
-		if (rv < size)
-			break;
+		va_copy(_ap, ap);
+		rv = vsnprintf(p, size, format, _ap);
+		va_end(_ap);
 		if (rv < 0)
-			return rv;
+			return EINVAL;
+		if (rv < size) {
+			break;
+		}
 		D("rv %d size %u: retry", rv, size);
 		size = rv + 1;
 		psz = NULL;
 	}
-	if (rv >= 0)
-		nm_confb_post_write(cb, rv);
+	nm_confb_post_write(cb, rv);
 	return 0;
 }
 
