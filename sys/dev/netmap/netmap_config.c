@@ -992,17 +992,37 @@ _nm_jp_ldel(struct nm_jp_list *il, struct nm_jp_lelem *e1)
 	return 0;
 }
 
-int
-nm_jp_ldel(struct nm_jp_list *il, struct nm_jp *ip)
+static struct nm_jp_lelem *
+_nm_jp_lfind(struct nm_jp_list *il, struct nm_jp *ip)
 {
 	struct nm_jp_lelem *e;
 
 	for (e = il->list; e != il->list + il->nextfree; e++)
 		if (e->ip == ip)
-			goto found;
-	return ENOENT;
-found:
+			return e;
+	return NULL;
+}
+
+int
+nm_jp_ldel(struct nm_jp_list *il, struct nm_jp *ip)
+{
+	struct nm_jp_lelem *e = _nm_jp_lfind(il, ip);
+
+	if (e == NULL)
+		return ENOENT;
+
 	return _nm_jp_ldel(il, e);
+}
+
+int
+nm_jp_lrename(struct nm_jp_list *il, struct nm_jp *ip, const char *name)
+{
+	struct nm_jp_lelem *e = _nm_jp_lfind(il, ip);
+
+	if (e == NULL)
+		return ENOENT;
+
+	return nm_jp_lelem_fill(e, e->ip, "%s", name);
 }
 
 

@@ -66,6 +66,34 @@ nm_os_ifnet_unlock(void)
 	rtnl_unlock();
 }
 
+struct linux_netmap_nw {
+	struct work_struct ws;
+	struct ifnet *ifp;
+};
+
+static void
+linux_netmap_nupd(struct work_struct *w)
+{
+	struct linux_netmap_nw *wn =
+		(struct linux_netmap_nw *)w;
+	struct ifnet *ifp = wn->ifp;
+	struct netmap_adapter *na;
+
+	NMG_LOCK();
+	if (NM_NA_VALID(ifp)) {
+		netmap_disable_all_rings(ifp);
+		na = NA(ifp);
+#ifdef WITH_NMCONF
+		nm_jp_lrename(&nm_jp_ports, &na->ip.up, ifp->if_xname);
+#endif
+		strncpy(na->name, ifp->if_xname, sizeof(na->name));
+		netmap_enable_all_rings(ifp);
+	}
+	NMG_UNLOCK();
+	dev_put(ifp);
+	nm_os_free(w);
+}
+
 /* Register for a notification on device removal */
 static int
 linux_netmap_notifier_cb(struct notifier_block *b,
@@ -75,6 +103,21 @@ linux_netmap_notifier_cb(struct notifier_block *b,
 
 	/* linux calls us while holding rtnl_lock() */
 	switch (val) {
+	case NETDEV_CHANGENAME:
+		if (NM_NA_VALID(ifp)) {
+			struct linux_netmap_nw *w =
+				nm_os_malloc(sizeof(struct linux_netmap_nw));
+			if (w == NULL) {
+				D("cannot schedule change of name for %s: out of memory",
+						ifp->if_xname);
+				break;
+			}
+			dev_hold(ifp);
+			w->ifp = ifp;
+			INIT_WORK(&w->ws, linux_netmap_nupd);
+			schedule_work(&w->ws);
+		}
+		break;
 	case NETDEV_UNREGISTER:
 		netmap_make_zombie(ifp);
 		break;
@@ -100,7 +143,8 @@ static int nm_os_ifnet_registered;
 int
 nm_os_ifnet_init(void)
 {
-	int error = register_netdevice_notifier(&linux_netmap_netdev_notifier);
+	int error;
+	error = register_netdevice_notifier(&linux_netmap_netdev_notifier);
 	if (!error)
 		nm_os_ifnet_registered = 1;
 	return error;
@@ -113,6 +157,7 @@ nm_os_ifnet_fini(void)
 		unregister_netdevice_notifier(&linux_netmap_netdev_notifier);
 		nm_os_ifnet_registered = 0;
 	}
+	flush_scheduled_work();
 }
 
 #ifdef NETMAP_LINUX_HAVE_IOMMU

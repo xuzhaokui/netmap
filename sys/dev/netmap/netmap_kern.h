@@ -320,6 +320,7 @@ int nm_jp_lelem_fill(struct nm_jp_lelem *e,
 		struct nm_jp *, const char *fmt, ...);
 int nm_jp_ladd(struct nm_jp_list *, struct nm_jp *, const char *fmt, ...);
 int nm_jp_ldel(struct nm_jp_list *, struct nm_jp *);
+int nm_jp_lrename(struct nm_jp_list *, struct nm_jp *, const char *);
 struct nm_jp_num {
 	struct nm_jp up;
 	void *var;
