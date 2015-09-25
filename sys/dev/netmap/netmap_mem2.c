@@ -562,6 +562,8 @@ static const struct netmap_mem_d nm_blueprint = {
 		},
 	},
 
+	.nm_grp = -1,
+
 	.flags = NETMAP_MEM_PRIVATE,
 
 	.ops = &netmap_mem_global_ops,
