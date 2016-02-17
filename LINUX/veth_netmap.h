@@ -31,6 +31,8 @@
 static int veth_open(struct ifnet *ifp);
 static int veth_close(struct ifnet *ifp);
 
+// 在 netmap 中注册/注销这个 veth 设备（这一步发生在用 netmap mode 打开/关闭 veth 的时候）
+// 其实是打开/关闭了对应 adapter 中 netmap 相关标记位，以及替换/还原了 veth 的 netdev_ops 函数集
 /*
  * Register/unregister. We are already under netmap lock.
  */
@@ -56,11 +58,16 @@ veth_netmap_reg(struct netmap_adapter *na, int onoff)
 
 	/* Enable or disable flags and callbacks in na and ifp. */
 	if (onoff) {
+		// 这一步是关联 veth 和 netmap 的关键：
+		// * 其中替换了 veth 的 netdev_ops 为 netmap 的函数集，使得协议栈会通过 netmap 的 netdev_ops 来在 veth 上收发包
 		nm_set_native_flags(na);
 	} else {
+		// 还原 veth device 的 netdev_ops 钩子函数
 		nm_clear_native_flags(na);
 	}
 
+	// 设置 ring 的开关
+	//
 	/* Set or clear nr_pending_mode and nr_mode, independently of the
 	 * state of nr_pending_mode. */
 	for_rx_tx(t) {
@@ -72,12 +79,17 @@ veth_netmap_reg(struct netmap_adapter *na, int onoff)
 	}
 
 	if (was_up)
+		// 最后一步是打开 veth
 		veth_open(ifp);
 
 	return (0);
 }
 
-
+// txsync 一般用于将 txring 中的数据发送到底层链路上（或者交换机），
+// 但对于 veth 来说，发送过程实际上只是将数据放到对端 Peer veth 的 rxring 中即可
+//
+// 从 veth0 的 txring 中拿出数据放到 veth1 的 rxring 中
+//
 /*
  * Reconcile kernel and user view of the transmit ring.
  */
@@ -112,8 +124,8 @@ veth_netmap_txsync(struct netmap_kring *kring, int flags)
 	if (unlikely(!peer_ifp))
 		goto out;
 
-	peer_na = NA(peer_ifp);
-	if (unlikely(!nm_netmap_on(peer_na)))
+	peer_na = NA(peer_ifp); // 从 *net_device 获取 adapter
+	if (unlikely(!nm_netmap_on(peer_na))) // 确定 peer veth 的 netmap mode 打开
 		goto out;
 
 	/* XXX This is unsafe, we are accessing the peer whose krings
@@ -131,8 +143,9 @@ veth_netmap_txsync(struct netmap_kring *kring, int flags)
 	/*
 	 * First part: process new packets to send.
 	 */
-	nm_i = kring->nr_hwcur;
-	nm_j = peer_kring->nr_hwtail;
+	nm_i = kring->nr_hwcur; // (veth0's tx ring) kernel 当前完成发送的位置
+	nm_j = peer_kring->nr_hwtail; // (veth1's rx ring) kernel 当前填入、可供用户使用的最后位置
+
 	mb();  /* for reading peer_kring->nr_hwcur */
 	peer_hwtail_lim = nm_prev(peer_kring->nr_hwcur, lim_peer);
 	if (nm_i != head) {	/* we have new packets to send */
@@ -147,6 +160,7 @@ veth_netmap_txsync(struct netmap_kring *kring, int flags)
 
 			NM_CHECK_ADDR_LEN(na, addr, len);
 
+			// 从 veth0's txring 拿出 slot 与 veth1's rxring 中空闲 slot 交换指针
 			tmp = *slot;
 			*slot = *peer_slot;
 			*peer_slot = tmp;
@@ -158,6 +172,7 @@ veth_netmap_txsync(struct netmap_kring *kring, int flags)
 
 		smp_mb();  /* for writing the slots */
 
+		// 传送完数据之后，更新游标
 		peer_kring->nr_hwtail = nm_j;
 		if (peer_kring->nr_hwtail > lim_peer) {
 			peer_kring->nr_hwtail -= lim_peer + 1;
@@ -172,6 +187,7 @@ veth_netmap_txsync(struct netmap_kring *kring, int flags)
 		if (kring->nr_hwtail > lim)
 			kring->nr_hwtail -= lim + 1;
 
+		// 通知阻塞进程去继续读/写
 		peer_kring->nm_notify(peer_kring, 0);
 	}
 out:
@@ -181,6 +197,8 @@ out:
 }
 
 
+// 从 veth0 的 rxring 中拿出数据放到 veth1 的 txring 中
+// 但实际不用做实际交换，因为 veth1 的 txsync 已经做了相同的交换
 /*
  * Reconcile kernel and user view of the receive ring.
  */
@@ -212,9 +230,10 @@ veth_netmap_rxsync(struct netmap_kring *kring, int flags)
 	if (unlikely(!nm_netmap_on(peer_na)))
 		goto out;
 
-
 	mb();
 
+	// 这里不发生真实内存交换，因为对端 peer veth 在调 txsync 时已经交换过了。
+	// 这里就只要更新下游标即可。
 	/*
 	 * First part: import newly received packets.
 	 * This is done by the peer's txsync.
@@ -236,6 +255,12 @@ out:
 	return 0;
 }
 
+
+// 这一步发生在 veth 设备创建的时候（也是 veth patch 的主要内容）
+// patched veth driver 会调用该函数将一个 veth attach 到 netmap
+//
+// 即在 netmap 内核模块中生成一个 veth_netmap_adapter 的过程，但这个 adapter 的真正使用需要等到 veth_netmap_reg 被调用。
+//
 static void
 veth_netmap_attach(struct ifnet *ifp)
 {

@@ -761,16 +761,16 @@ static int netmap_rxsync_from_host(struct netmap_kring *kring, int flags);
  *
  *                    +----------+
  * na->tx_rings ----->|          | \
- *                    |          |  } na->num_tx_ring
+ *                    |          |  } na->num_tx_rings 个 netmap_kring 对象
  *                    |          | /
  *                    +----------+
- *                    |          |    host tx kring
+ *                    |          |    host tx kring（1个netmap_kring 对象）
  * na->rx_rings ----> +----------+
  *                    |          | \
- *                    |          |  } na->num_rx_rings
+ *                    |          |  } na->num_rx_rings 个 netmap_kring 对象
  *                    |          | /
  *                    +----------+
- *                    |          |    host rx kring
+ *                    |          |    host rx kring（1个netmap_kring 对象）
  *                    +----------+
  * na->tailroom ----->|          | \
  *                    |          |  } tailroom bytes
@@ -781,17 +781,18 @@ static int netmap_rxsync_from_host(struct netmap_kring *kring, int flags);
  * The tailroom space is currently used by vale ports for allocating leases.
  */
 /* call with NMG_LOCK held */
+// 根据传入的 netmap_adapter @na 初始化相应的 netmap_kring(s)，并与 @na 关联起来
 int
 netmap_krings_create(struct netmap_adapter *na, u_int tailroom)
 {
 	u_int i, len, ndesc;
 	struct netmap_kring *kring;
 	u_int n[NR_TXRX];
-	enum txrx t;
+	enum txrx t; // note: enum txrx { NR_RX = 0, NR_TX = 1, NR_TXRX };
 
 	/* account for the (possibly fake) host rings */
-	n[NR_TX] = na->num_tx_rings + 1;
-	n[NR_RX] = na->num_rx_rings + 1;
+	n[NR_TX] = na->num_tx_rings + 1; // 设置 tx ring 个数（额外预留一个 ring 的空间）
+	n[NR_RX] = na->num_rx_rings + 1; // 设置 rx ring 个数（额外预留一个 ring 的空间）
 
 	len = (n[NR_TX] + n[NR_RX]) * sizeof(struct netmap_kring) + tailroom;
 
@@ -806,10 +807,12 @@ netmap_krings_create(struct netmap_adapter *na, u_int tailroom)
 	 * All fields in krings are 0 except the one initialized below.
 	 * but better be explicit on important kring fields.
 	 */
-	for_rx_tx(t) {
-		ndesc = nma_get_ndesc(na, t);
-		for (i = 0; i < n[t]; i++) {
-			kring = &NMR(na, t)[i];
+	for_rx_tx(t) { // 遍历 txrx 的所有枚举值
+		ndesc = nma_get_ndesc(na, t); // 获取每个 queue 中的 descriptor 数量
+		for (i = 0; i < n[t]; i++) { // 遍历每个 kring 对象
+			kring = &NMR(na, t)[i]; // 获取单个 kring 对象
+
+      // 以下是初始化一个 kring 对象的过程
 			bzero(kring, sizeof(*kring));
 			kring->na = na;
 			kring->ring_id = i;
@@ -817,14 +820,19 @@ netmap_krings_create(struct netmap_adapter *na, u_int tailroom)
 			kring->nkr_num_slots = ndesc;
 			kring->nr_mode = NKR_NETMAP_OFF;
 			kring->nr_pending_mode = NKR_NETMAP_OFF;
+      // 注册钩子函数
 			if (i < nma_get_nrings(na, t)) {
+        // 前 n 个 ring 都属于 netmap 的 ring，使用 nm_xxsync 进行 sync 动作
 				kring->nm_sync = (t == NR_TX ? na->nm_txsync : na->nm_rxsync);
 			} else {
+        // 最后一个 ring 是供 host stack 使用的 ring，设置不同的 sync 钩子
 				kring->nm_sync = (t == NR_TX ?
 						netmap_txsync_to_host:
 						netmap_rxsync_from_host);
 			}
+      // nm_notify 钩子在有数据可用时会被 callback
 			kring->nm_notify = na->nm_notify;
+      // 初始化 kring 相关游标
 			kring->rhead = kring->rcur = kring->nr_hwcur = 0;
 			/*
 			 * IMPORTANT: Always keep one slot empty.
@@ -834,10 +842,13 @@ netmap_krings_create(struct netmap_adapter *na, u_int tailroom)
 					nm_txrx2str(t), i);
 			ND("ktx %s h %d c %d t %d",
 				kring->name, kring->rhead, kring->rcur, kring->rtail);
+      // 初始化互斥锁
 			mtx_init(&kring->q_lock, (t == NR_TX ? "nm_txq_lock" : "nm_rxq_lock"), NULL, MTX_DEF);
-			init_waitqueue_head(&kring->si);
+      // kring->si 是一个等待进程的队列，kring 有变化时，会通知唤醒这些进程
+			init_waitqueue_head(&kring->si); // 初始化进程等待队列
 		}
-		init_waitqueue_head(&na->si[t]);
+    // na->si[t] 为每个 txrx 枚举值维护了一个等待队列，相应的 rx/tx 事件通知会唤醒相应的等待队列
+		init_waitqueue_head(&na->si[t]); // 初始化进程等待队列
 	}
 
 	na->tailroom = na->rx_rings + n[NR_RX];
@@ -859,6 +870,8 @@ netmap_knlist_destroy(NM_SELINFO_T *si)
 #endif /* __FreeBSD__ */
 
 
+// 释放 netmap_adapter 的 rings
+//
 /* undo the actions performed by netmap_krings_create */
 /* call with NMG_LOCK held */
 void
@@ -2172,6 +2185,9 @@ netmap_ioctl(struct netmap_priv_d *priv, u_long cmd, caddr_t data, struct thread
 		NMG_UNLOCK();
 		break;
 
+  // 用户态调用 ioctl(fd, NIOCREGIF, &req) 表明将
+  // 该 fd 关联的 interface 注册到 netmap
+  //
 	case NIOCREGIF:
 		/* possibly attach/detach NIC and VALE switch */
 		i = nmr->nr_cmd;
@@ -2181,6 +2197,7 @@ netmap_ioctl(struct netmap_priv_d *priv, u_long cmd, caddr_t data, struct thread
 				|| i == NETMAP_BDG_DELIF
 				|| i == NETMAP_BDG_POLLING_ON
 				|| i == NETMAP_BDG_POLLING_OFF) {
+      // 如果 ioctl 的请求参数中包含以上标记位，则表明要将一个 interface attach 到 VALE bridge 上
 			error = netmap_bdg_ctl(nmr, NULL);
 			break;
 		} else if (i == NETMAP_PT_HOST_CREATE || i == NETMAP_PT_HOST_DELETE) {
@@ -2357,6 +2374,7 @@ netmap_ioctl(struct netmap_priv_d *priv, u_long cmd, caddr_t data, struct thread
 	return (error);
 }
 
+// 用户态使用 poll/select call 最终会执行到这里
 /*
  * select(2) and poll(2) handlers for the "netmap" device.
  *
@@ -2438,7 +2456,9 @@ netmap_poll(struct netmap_priv_d *priv, int events, NM_SELRECORD_T *sr)
 #if 1 /* new code- call rx if any of the ring needs to release or read buffers */
 	if (want_tx) {
 		t = NR_TX;
+    // 遍历检查所有 queue
 		for (i = priv->np_qfirst[t]; want[t] && i < priv->np_qlast[t]; i++) {
+      // 获取 tx ring
 			kring = &NMR(na, t)[i];
 			/* XXX compare ring->cur and kring->tail */
 			if (!nm_ring_empty(kring->ring)) {
@@ -2450,11 +2470,14 @@ netmap_poll(struct netmap_priv_d *priv, int events, NM_SELRECORD_T *sr)
 	if (want_rx) {
 		want_rx = 0; /* look for a reason to run the handlers */
 		t = NR_RX;
+
+    // 遍历检查所有 queue
 		for (i = priv->np_qfirst[t]; i < priv->np_qlast[t]; i++) {
+      // 获取 rx ring
 			kring = &NMR(na, t)[i];
 			if (kring->ring->cur == kring->ring->tail /* try fetch new buffers */
 			    || kring->rhead != kring->ring->head /* release buffers */) {
-				want_rx = 1;
+				want_rx = 1; // 没有数据到来的情形
 			}
 		}
 		if (!want_rx)
@@ -2527,6 +2550,9 @@ flush_tx:
 		/* if there were any packet to forward we must have handled them by now */
 		send_down = 0;
 		if (want_tx && retry_tx && sr) {
+      // 将当次的 poll 调用阻塞，并把当前进程放入相应的等待队列:
+      // 1. 如果已经检查了所有的 tx queue，那么则加入 adapter 级别的 wait_queue
+      // 2. 如果只检查了一个 tx queue，那么则加入该 tx queue 的 wait_queue
 			nm_os_selrecord(sr, check_all_tx ?
 			    &na->si[NR_TX] : &na->tx_rings[priv->np_qfirst[NR_TX]].si);
 			retry_tx = 0;
@@ -2795,6 +2821,11 @@ _netmap_attach(struct netmap_adapter *arg, size_t size)
 
 	NM_ATTACH_NA(ifp, &hwna->up);
 
+
+  // 设置 adapter 中对应的 net_device_ops 函数集
+  // 后面会将 hwna->nm_ndo 替换成 veth 的 netdev_ops
+  // 从而完成对 veth 收发包的劫持
+  //
 #ifdef linux
 	if (ifp->netdev_ops) {
 		/* prepare a clone of the netdev ops */
@@ -3242,6 +3273,7 @@ netmap_init(void)
 
 	NMG_LOCK_INIT();
 
+  // 初始化根内存分配器
 	error = netmap_mem_init();
 	if (error != 0)
 		goto fail;
@@ -3256,6 +3288,7 @@ netmap_init(void)
 	if (!netmap_dev)
 		goto fail;
 
+  // 初始化 VALE 交换模块数据结构
 	error = netmap_init_bridges();
 	if (error)
 		goto fail;
@@ -3264,6 +3297,7 @@ netmap_init(void)
 	nm_os_vi_init_index();
 #endif
 
+  // 在 linux 协议栈中注册 netdevice 变更通知的钩子函数
 	error = nm_os_ifnet_init();
 	if (error)
 		goto fail;

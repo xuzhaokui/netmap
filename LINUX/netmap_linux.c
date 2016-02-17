@@ -83,6 +83,7 @@ static int nm_os_ifnet_registered;
 int
 nm_os_ifnet_init(void)
 {
+	// 在 linux 协议栈中注册 netdevice 变更通知的钩子函数
 	int error = register_netdevice_notifier(&linux_netmap_netdev_notifier);
 	if (!error)
 		nm_os_ifnet_registered = 1;
@@ -284,10 +285,22 @@ nm_os_mitigation_cleanup(struct nm_generic_mit *mit)
  */
 #ifdef NETMAP_LINUX_HAVE_RX_REGISTER
 #ifdef NETMAP_LINUX_HAVE_RX_HANDLER_RESULT
+// 说明：
+// 对于 linux 来说，这里的 mbuf 就是 sk_buff
+// #define	mbuf			sk_buff (见 bsd_glue.h)
 static rx_handler_result_t linux_generic_rx_handler(struct mbuf **pm)
 {
 	int stolen;
 
+	// **黑科技**：
+	// 通过 sk_buff->priority 字段的魔法数字来区别哪些包该 bypass
+	//
+	// kernel 中，如果 rx_handler 返回：
+	// 1. RX_HANDLER_PASS，那么 kernel 会继续将包递交给协议栈处理
+	// 2. RX_HANDLER_CONSUMED，那么 kernel 则不会继续协议栈处理流程
+	//
+	// 见：http://lxr.free-electrons.com/source/net/core/dev.c?v=3.16#L3637
+	//
 	/* If we were called by NM_SEND_UP(), we want to pass the mbuf
 	   to network stack. We detect this situation looking at the
 	   priority field. */
@@ -299,7 +312,7 @@ static rx_handler_result_t linux_generic_rx_handler(struct mbuf **pm)
 	   already been pulled. Since we want the netmap rings to contain the
 	   full ethernet header, we push it back, so that the RX ring reader
 	   can see it. */
-	skb_push(*pm, 14);
+	skb_push(*pm, 14);	// 见上面注释，很清楚
 
 	/* Possibly steal the mbuf and notify the pollers for a new RX
 	 * packet. */
@@ -377,6 +390,7 @@ generic_ndo_start_xmit(struct mbuf *m, struct ifnet *ifp)
 	struct netmap_generic_adapter *gna =
 		(struct netmap_generic_adapter *)NA(ifp);
 
+	// 带 NM_MAGIC_PRIORITY_TX 说明是 netmap userspace 的 tx
 	if (likely(m->priority == NM_MAGIC_PRIORITY_TX)) {
 		/* Reset priority, so that generic_netmap_tx_clean()
 		 * knows that it can reclaim this mbuf. */
@@ -384,6 +398,7 @@ generic_ndo_start_xmit(struct mbuf *m, struct ifnet *ifp)
 		return gna->save_start_xmit(m, ifp); /* To the driver. */
 	}
 
+	// 不带 NM_MAGIC_PRIORITY_TX 说明是来自 network stack
 	/* To a netmap RX ring. */
 	return linux_netmap_start_xmit(m, ifp);
 }
@@ -598,6 +613,7 @@ qdisc_create:
 	return -1;
 }
 
+// 
 /* Must be called under rtnl. */
 int
 nm_os_catch_tx(struct netmap_generic_adapter *gna, int intercept)
@@ -618,6 +634,7 @@ nm_os_catch_tx(struct netmap_generic_adapter *gna, int intercept)
 		 * ndo_select_queue() and ndo_start_xmit() methods
 		 * with our custom ones, and make the driver use it.
 		 */
+		// 保存原有 ops 指针用于 unregister 时恢复
 		na->if_transmit = (void *)ifp->netdev_ops;
 		/* Save a redundant copy of ndo_start_xmit(). */
 		gna->save_start_xmit = ifp->netdev_ops->ndo_start_xmit;
@@ -818,6 +835,7 @@ linux_netmap_poll(struct file * file, struct poll_table_struct *pwait)
 	return netmap_poll(priv, events, &sr);
 }
 
+// mmap 后，访问内存区域出现 page fault 时，os 会回调该函数
 static int
 linux_netmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 {
@@ -844,6 +862,10 @@ static struct vm_operations_struct linux_netmap_mmap_ops = {
 	.fault = linux_netmap_fault,
 };
 
+// vfs: mmap()
+// userspace 调用 mmap 直接访问 netmap 设备的数据
+// @vma 是用户态空间的内存区域
+//
 static int
 linux_netmap_mmap(struct file *f, struct vm_area_struct *vma)
 {
@@ -978,9 +1000,15 @@ linux_netmap_release(struct inode *inode, struct file *file)
 }
 
 
+// vfs: open()
+// userspace 打开 netmap device 时的入口
+// 注意：这里返回的 fd 始终是 0
+//
 static int
 linux_netmap_open(struct inode *inode, struct file *file)
 {
+	// netmap_priv_d 是关联到每个 fd 的数据结构
+	//
 	struct netmap_priv_d *priv;
 	int error;
 	(void)inode;	/* UNUSED */
@@ -991,6 +1019,8 @@ linux_netmap_open(struct inode *inode, struct file *file)
 		error = -ENOMEM;
 		goto out;
 	}
+
+	// 把 netmap_priv_d 记录在 kernel file 的 private_data 中
 	file->private_data = priv;
 out:
 	NMG_UNLOCK();
@@ -2531,6 +2561,9 @@ nm_os_vi_detach(struct ifnet *ifp)
 void
 nm_os_selwakeup(NM_SELINFO_T *si)
 {
+	// @si 是一个 netmap 维护的进程等待队列，里面的进程都在等待某个特定的事件到来，
+	// 这里调用 wake_up_interruptible 是通知 os 调度器去唤醒这个队列中的进程
+
 	/* We use wake_up_interruptible() since select() and poll()
 	 * sleep in an interruptbile way. */
 	wake_up_interruptible(si);
@@ -2539,6 +2572,7 @@ nm_os_selwakeup(NM_SELINFO_T *si)
 void
 nm_os_selrecord(NM_SELRECORD_T *sr, NM_SELINFO_T *si)
 {
+	// 把当前进程添加到等待队列 @si 中
 	poll_wait(sr->file, si, sr->pwait);
 }
 

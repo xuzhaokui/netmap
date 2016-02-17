@@ -369,8 +369,12 @@ nm_txrx_swap(enum txrx t)
 struct netmap_kring {
 	struct netmap_ring	*ring;
 
+	/*	
+	 *  index of the next buffer to refill.
+ 	 *	It corresponds to ring->head at the time the system call returns.
+ 	 */
 	uint32_t	nr_hwcur;
-	uint32_t	nr_hwtail;
+	uint32_t	nr_hwtail; // index of the first buffer owned by the kernel.
 
 	/*
 	 * Copies of values in user rings, so we do not need to look
@@ -390,7 +394,7 @@ struct netmap_kring {
 
 	uint32_t	nr_mode;
 	uint32_t	nr_pending_mode;
-#define NKR_NETMAP_OFF	0x0
+#define NKR_NETMAP_OFF	0x0 // 这个 宏 意味着设备没有打开 netmap mode
 #define NKR_NETMAP_ON	0x1
 
 	uint32_t	nkr_num_slots;
@@ -411,10 +415,13 @@ struct netmap_kring {
 	uint64_t	last_reclaim;
 
 
+	// @si 中维护了等待事件通知的进程队列，当有事件来临时，会调用 wake_up_interruptible 去唤醒这个队列的进程
 	NM_SELINFO_T	si;		/* poll/select wait queue */
 	NM_LOCK_T	q_lock;		/* protects kring and ring. */
 	NM_ATOMIC_T	nr_busy;	/* prevent concurrent syscalls */
 
+	// 这里看出每个 netmap_adapter 都有一个 netmap_kring
+	// 每个 netmap_kring 都属于某个 netmap_adapter 使用
 	struct netmap_adapter *na;
 
 	/* The following fields are for VALE switch support */
@@ -794,12 +801,14 @@ nma_set_ndesc(struct netmap_adapter *na, enum txrx t, u_int v)
 		na->num_rx_desc = v;
 }
 
+// 获取 adapter 的设定的 tx/rx ring 个数
 static __inline u_int
 nma_get_nrings(struct netmap_adapter *na, enum txrx t)
 {
 	return (t == NR_TX ? na->num_tx_rings : na->num_rx_rings);
 }
 
+// 设置 adapter 的设定的 tx/rx ring 个数
 static __inline void
 nma_set_nrings(struct netmap_adapter *na, enum txrx t, u_int v)
 {
@@ -809,6 +818,7 @@ nma_set_nrings(struct netmap_adapter *na, enum txrx t, u_int v)
 		na->num_rx_rings = v;
 }
 
+// 获取 adapter 中使用的 tx/rx kring 指针
 static __inline struct netmap_kring*
 NMR(struct netmap_adapter *na, enum txrx t)
 {

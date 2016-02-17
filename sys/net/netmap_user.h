@@ -105,6 +105,7 @@
 
 #define NETMAP_IF(_base, _ofs)	_NETMAP_OFFSET(struct netmap_if *, _base, _ofs)
 
+// 从 nifp 获取第 index 个 ring
 #define NETMAP_TXRING(nifp, index) _NETMAP_OFFSET(struct netmap_ring *, \
 	nifp, (nifp)->ring_ofs[index] )
 

@@ -1121,6 +1121,7 @@ wait_time(struct timespec ts)
 	}
 }
 
+// 发包执行体
 static void *
 sender_body(void *data)
 {

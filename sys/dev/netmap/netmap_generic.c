@@ -244,6 +244,8 @@ void generic_rate(int txp, int txs, int txi, int rxp, int rxs, int rxi)
 
 /* =============== GENERIC NETMAP ADAPTER SUPPORT ================= */
 
+// 通知唤醒等待队列中的阻塞进程
+//
 /*
  * Wrapper used by the generic adapter layer to notify
  * the poller threads. Differently from netmap_rx_irq(), we check
@@ -267,6 +269,7 @@ netmap_generic_irq(struct netmap_adapter *na, u_int q, u_int *work_done)
 static int
 generic_netmap_unregister(struct netmap_adapter *na)
 {
+	// netmap_xxx_adapter 之间可以来回转换
 	struct netmap_generic_adapter *gna = (struct netmap_generic_adapter *)na;
 	struct netmap_kring *kring = NULL;
 	int i, r;
@@ -275,11 +278,14 @@ generic_netmap_unregister(struct netmap_adapter *na)
 		D("Generic adapter %p goes off", na);
 		rtnl_lock();
 
+		// 关闭 adapter 的 NETMAP mode 标记位
 		na->na_flags &= ~NAF_NETMAP_ON;
 
+		// 恢复协议栈中 tx 的钩子 ops
 		/* Release packet steering control. */
 		nm_os_catch_tx(gna, 0);
 
+		// 恢复协议栈中 rx 的钩子 ops
 		/* Stop intercepting packets on the RX path. */
 		nm_os_catch_rx(gna, 0);
 
@@ -895,6 +901,7 @@ generic_rx_handler(struct ifnet *ifp, struct mbuf *m)
 
 	kring = &na->rx_rings[r];
 
+	// 检查设备是否被置为 netmap mode，如果不是，则赶紧把 skb 还给 kernel
 	if (kring->nr_mode == NKR_NETMAP_OFF) {
 		/* We must not intercept this mbuf. */
 		return 0;
@@ -911,11 +918,15 @@ generic_rx_handler(struct ifnet *ifp, struct mbuf *m)
 	} else if (unlikely(mbq_len(&kring->rx_queue) > 1024)) {
 		m_freem(m);
 	} else {
+		// 将 skb 放入队列
 		mbq_safe_enqueue(&kring->rx_queue, m);
 	}
 
+	// netmap_generic_mit 是一个时间间隔，在这个时间间隔内到来的数据包不会产生 irq notify
+	// 主要用于合并 notify，减少 irq 消耗
 	if (netmap_generic_mit < 32768) {
 		/* no rx mitigation, pass notification up */
+		// netmap_generic_irq 最终调用了 nm_notify，唤醒 poll/select 阻塞的进程
 		netmap_generic_irq(na, r, &work_done);
 	} else {
 		/* same as send combining, filter notification if there is a

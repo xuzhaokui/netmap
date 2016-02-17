@@ -271,10 +271,10 @@ void __netmap_mem_get(struct netmap_mem_d *nmd, const char *func, int line)
 void netmap_mem_get(struct netmap_mem_d *nmd)
 #endif
 {
-	NMA_LOCK(nmd);
+	NMA_LOCK(nmd); // 获取 mutex 锁
 	nmd->refcount++;
 	NM_DBG_REFC(nmd, func, line);
-	NMA_UNLOCK(nmd);
+	NMA_UNLOCK(nmd); // 解锁
 }
 
 #ifdef NM_DEBUG_MEM_PUTGET
